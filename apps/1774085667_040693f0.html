@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>忍者跑酷：飞雷神</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
+        body {
+            font-family: 'ZCOOL KuaiLe', cursive, sans-serif;
+            touch-action: none; /* 阻止移动端默认的滑动和双击缩放 */
+        }
+        #gameCanvas {
+            image-rendering: pixelated;
+        }
+        kbd {
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-white overflow-hidden h-screen w-screen flex justify-center items-center select-none">
+
+    <!-- 游戏主容器 -->
+    <div id="game-container" class="relative w-full max-w-5xl px-2 md:px-0">
+        <!-- 画布保持 2:1 的宽高比 -->
+        <canvas id="gameCanvas" width="800" height="400" class="w-full aspect-[2/1] bg-gray-900 rounded-xl shadow-[0_0_30px_rgba(59,130,246,0.3)] border border-gray-800"></canvas>
+        
+        <!-- 游戏内 UI -->
+        <div id="ui-layer" class="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none px-4 md:px-8">
+            <div class="flex flex-col">
+                <div class="text-3xl md:text-4xl font-bold text-yellow-400 drop-shadow-md">
+                    得分: <span id="scoreText">0</span>
+                </div>
+            </div>
+            
+            <div class="flex gap-4 md:gap-6">
+                <!-- 三段跳指示器 -->
+                <div class="flex flex-col items-center">
+                    <div id="jumpBtnLayer" class="w-12 h-12 md:w-16 md:h-16 rounded-full border-4 border-green-400 flex items-center justify-center bg-gray-900/80 text-green-400 shadow-lg shadow-green-500/20 transition-colors">
+                        <span id="jumpCountText" class="text-2xl md:text-3xl font-bold">3</span>
+                    </div>
+                    <span class="text-xs md:text-sm mt-1 text-gray-300 font-sans tracking-wider">跳跃(Space)</span>
+                </div>
+
+                <!-- 飞雷神冷却指示器 -->
+                <div class="flex flex-col items-center">
+                    <div class="w-12 h-12 md:w-16 md:h-16 rounded-full border-4 border-blue-500 flex items-center justify-center relative overflow-hidden bg-gray-900/80 shadow-lg shadow-blue-500/20">
+                        <span class="z-10 text-xl md:text-2xl font-bold text-blue-100">F</span>
+                        <div id="dashCooldown" class="absolute bottom-0 left-0 w-full bg-blue-600/70 h-0 transition-all duration-75"></div>
+                    </div>
+                    <span class="text-xs md:text-sm mt-1 text-gray-300 font-sans tracking-wider">飞雷神(F)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 移动端操作提示 (仅小屏幕显示) -->
+        <div class="absolute bottom-8 left-0 w-full flex justify-between px-8 pointer-events-none md:hidden opacity-40 font-sans">
+            <div class="text-white text-lg tracking-widest">👈 点击跳跃</div>
+            <div class="text-white text-lg tracking-widest">飞雷神 👉</div>
+        </div>
+
+        <!-- 开始界面 -->
+        <div id="startScreen" class="absolute inset-0 bg-black/85 flex flex-col items-center justify-center rounded-xl z-50 transition-opacity duration-300">
+            <h1 class="text-5xl md:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 mb-6 drop-shadow-[0_0_15px_rgba(59,130,246,0.6)]">忍者跑酷</h1>
+            
+            <div class="text-white text-base md:text-lg space-y-3 mb-8 text-center bg-gray-900/70 p-6 rounded-2xl border border-gray-700 font-sans max-w-md shadow-2xl">
+                <p class="flex items-center justify-center gap-2">
+                    <span class="text-green-400 font-bold text-xl">三段跳:</span> 
+                    <kbd class="bg-gray-800 px-2 py-1 rounded text-sm border border-gray-600 shadow">空格</kbd> 或 <kbd class="bg-gray-800 px-2 py-1 rounded text-sm border border-gray-600 shadow">↑</kbd> 
+                    <span class="text-gray-400 text-sm">(点左屏)</span>
+                </p>
+                <p class="flex items-center justify-center gap-2">
+                    <span class="text-blue-400 font-bold text-xl">飞雷神:</span> 
+                    <kbd class="bg-gray-800 px-2 py-1 rounded text-sm border border-gray-600 shadow">F</kbd> 或 <kbd class="bg-gray-800 px-2 py-1 rounded text-sm border border-gray-600 shadow">Shift</kbd> 
+                    <span class="text-gray-400 text-sm">(点右屏)</span>
+                </p>
+                <div class="w-full h-px bg-gray-700 my-4"></div>
+                <p class="text-sm text-gray-300 leading-relaxed">
+                    躲避<span class="text-red-400">尖刺</span>、<span class="text-purple-400">手里剑</span>与<span class="text-gray-500 font-bold">无底深坑</span>。<br>
+                    使用<span class="text-blue-400 font-bold">飞雷神</span>可瞬间位移并获得无敌状态，无敌期间可<span class="text-yellow-400">粉碎陷阱</span>！
+                </p>
+            </div>
+            
+            <button id="startBtn" class="px-10 py-4 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-full font-bold text-2xl transition-all transform hover:scale-110 shadow-[0_0_20px_rgba(59,130,246,0.5)] active:scale-95">开始试炼</button>
+            
+            <!-- 新增设计者署名 -->
+            <div class="mt-6 text-gray-400 text-sm md:text-base font-sans tracking-widest font-bold">设计者：lushan</div>
+        </div>
+
+        <!-- 结算界面 -->
+        <div id="gameOverScreen" class="absolute inset-0 bg-red-950/90 hidden flex-col items-center justify-center rounded-xl z-50">
+            <h1 class="text-6xl md:text-8xl font-extrabold text-red-500 mb-2 tracking-widest drop-shadow-[0_0_20px_rgba(239,68,68,0.8)]">陨落</h1>
+            <p class="text-2xl md:text-3xl text-red-200 mb-8 font-sans">最终试炼得分: <span id="finalScore" class="font-bold text-yellow-400 text-4xl">0</span></p>
+            <button id="restartBtn" class="px-10 py-4 bg-red-600 hover:bg-red-500 text-white rounded-full font-bold text-2xl transition-all transform hover:scale-110 shadow-[0_0_20px_rgba(239,68,68,0.5)] active:scale-95">再次挑战</button>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 游戏内部固定分辨率 (800x400)，通过 CSS 进行缩放适应屏幕
+    const GAME_WIDTH = 800;
+    const GAME_HEIGHT = 400;
+    const GROUND_Y = 340;
+
+    // --- 游戏状态变量 ---
+    let frames = 0;
+    let score = 0;
+    let gameSpeed = 6;
+    let gameRunning = false;
+    let isGameOver = false;
+    let bgOffset = 0;
+
+    // --- 实体对象 ---
+    const player = {
+        x: 100,
+        y: GROUND_Y - 40,
+        w: 36,
+        h: 40,
+        vy: 0,
+        gravity: 0.65,
+        jumpForce: -11.5,
+        jumpsLeft: 3,
+        maxJumps: 3,
+        dashCooldown: 0,
+        maxDashCooldown: 180, // 约 3 秒冷却 (60帧/秒)
+        invincibleTimer: 0
+    };
+
+    let obstacles = [];
+    let particles = [];
+    let lightnings = [];
+    let playerTrails = [];
+    let spawnTimer = 0;
+
+    // --- 音效系统 (Web Audio API) ---
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioContext();
+    let bgmTimer;
+    let bgmStep = 0;
+    const melody = [196, 220, 261, 293, 329, 293, 261, 220]; // G小调五声音阶律动
+
+    function playTone(freq, type, duration, vol=0.1, slide=0) {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        if (slide !== 0) {
+            osc.frequency.exponentialRampToValueAtTime(Math.max(1, freq + slide), audioCtx.currentTime + duration);
+        }
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function playNoise(duration, vol=0.1) {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const bufferSize = audioCtx.sampleRate * duration;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1; // 生成白噪音
+        }
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        noise.connect(gain);
+        gain.connect(audioCtx.destination);
+        noise.start();
+    }
+
+    function startBGM() {
+        stopBGM();
+        function nextNote() {
+            if(!gameRunning || isGameOver) return;
+            const freq = melody[bgmStep % melody.length];
+            // 贝斯线
+            playTone(freq / 2, 'sawtooth', 0.2, 0.03);
+            // 偶尔的高音点缀
+            if (bgmStep % 4 === 0) playTone(freq * 2, 'sine', 0.1, 0.02);
+            bgmStep++;
+            bgmTimer = setTimeout(nextNote, 220); // 控制BGM速度
+        }
+        nextNote();
+    }
+
+    function stopBGM() {
+        if(bgmTimer) clearTimeout(bgmTimer);
+    }
+
+    // --- 控制与输入监听 ---
+    window.addEventListener('keydown', (e) => {
+        if (!gameRunning || isGameOver) return;
+        if (e.code === 'Space' || e.code === 'ArrowUp') {
+            e.preventDefault();
+            jump();
+        } else if (e.code === 'KeyF' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+            e.preventDefault();
+            dash();
+        }
+    });
+
+    // 移动端触摸控制 (左半屏跳跃，右半屏飞雷神)
+    canvas.addEventListener('touchstart', handleTouch, { passive: false });
+    canvas.addEventListener('mousedown', handleTouch, { passive: false });
+
+    function handleTouch(e) {
+        if (!gameRunning || isGameOver) return;
+        e.preventDefault();
+        
+        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let screenWidth = window.innerWidth;
+        
+        if (clientX < screenWidth / 2) {
+            jump();
+        } else {
+            dash();
+        }
+    }
+
+    // --- 核心技能逻辑 ---
+    function jump() {
+        if (player.jumpsLeft > 0) {
+            player.vy = player.jumpForce;
+            
+            // 跳跃音效：随着段数变化频率
+            playTone(400 + (3 - player.jumpsLeft) * 150, 'sine', 0.2, 0.05, -100);
+            
+            // 依据跳跃次数给予不同颜色的粒子特效
+            const colors = ['#f87171', '#fbbf24', '#34d399']; 
+            const pColor = colors[player.jumpsLeft - 1] || '#fff';
+            
+            createParticles(player.x + player.w / 2, player.y + player.h, pColor, 15, true);
+            player.jumpsLeft--;
+        }
+    }
+
+    function dash() {
+        if (player.dashCooldown === 0) {
+            player.dashCooldown = player.maxDashCooldown;
+            player.invincibleTimer = 25; // 无敌帧时间
+            
+            // 飞雷声音效: 短促高频 + 白噪音模拟破空声
+            playTone(800, 'square', 0.2, 0.05, -400);
+            playNoise(0.2, 0.1);
+            
+            // 瞬间移动距离
+            const dashDist = 180;
+            
+            // 创建飞雷神闪电和粒子
+            lightnings.push({ x: player.x, y: player.y + player.h / 2, w: dashDist, life: 12 });
+            createParticles(player.x + dashDist, player.y + player.h / 2, '#60a5fa', 25, true);
+            
+            player.x += dashDist;
+            player.vy = 0; // 悬停一瞬间
+        }
+    }
+
+    // --- 更新逻辑 ---
+    function updatePlayer() {
+        player.vy += player.gravity;
+        player.y += player.vy;
+
+        // 冷却与计时器递减
+        if (player.dashCooldown > 0) player.dashCooldown--;
+        if (player.invincibleTimer > 0) {
+            player.invincibleTimer--;
+            // 记录残影
+            if (frames % 2 === 0) {
+                playerTrails.push({ x: player.x, y: player.y, life: 15 });
+            }
+        }
+
+        // 更新残影
+        for (let i = 0; i < playerTrails.length; i++) {
+            playerTrails[i].life--;
+            if (playerTrails[i].life <= 0) {
+                playerTrails.splice(i, 1);
+                i--;
+            }
+        }
+
+        // 地面碰撞与掉落深坑逻辑
+        if (player.y + player.h >= GROUND_Y && player.vy > 0) {
+            let overPit = false;
+            for (let obs of obstacles) {
+                if (obs.type === 'pit') {
+                    let pCenter = player.x + player.w / 2;
+                    // 判断玩家中心是否完全处于坑洞的X坐标范围内
+                    if (pCenter > obs.x + 5 && pCenter < obs.x + obs.w - 5) {
+                        overPit = true;
+                        break;
+                    }
+                }
+            }
+
+            // 如果没有在坑上面，并且还没有掉下去太深，就站在地面上
+            if (!overPit && player.y + player.h <= GROUND_Y + 20) {
+                player.y = GROUND_Y - player.h;
+                player.vy = 0;
+                player.jumpsLeft = player.maxJumps;
+            }
+        }
+
+        // 掉出屏幕外 (掉入深坑)
+        if (player.y > GAME_HEIGHT + 50) {
+            triggerGameOver();
+        }
+
+        // 飞雷神后，缓慢漂移回原位
+        if (player.x > 100) {
+            player.x -= 2; 
+        } else if (player.x < 100) {
+            player.x = 100;
+        }
+    }
+
+    function updateObstacles() {
+        spawnTimer--;
+        if (spawnTimer <= 0) {
+            const typeRoll = Math.random();
+            if (typeRoll < 0.35) {
+                // 尖刺 (Spike)
+                obstacles.push({ type: 'spike', x: GAME_WIDTH, y: GROUND_Y - 35, w: 35, h: 35 });
+            } else if (typeRoll < 0.65) {
+                // 深坑 (Pit)
+                obstacles.push({ type: 'pit', x: GAME_WIDTH, y: GROUND_Y, w: 140, h: 60 });
+            } else {
+                // 悬浮手里剑 (Trap)
+                let trapY = GROUND_Y - 80 - Math.random() * 60;
+                obstacles.push({ type: 'trap', x: GAME_WIDTH, y: trapY, w: 40, h: 40 });
+            }
+            
+            // 根据速度动态计算生成间隔，防止障碍物重叠
+            let minFrames = 45 + (10 / gameSpeed) * 15;
+            spawnTimer = minFrames + Math.random() * 50;
+        }
+
+        for (let i = 0; i < obstacles.length; i++) {
+            let obs = obstacles[i];
+            obs.x -= gameSpeed;
+
+            // 碰撞检测
+            let isCollision = false;
+            if (obs.type !== 'pit') {
+                // 简单的矩形碰撞缩小一点判定范围（更公平）
+                let hitBoxShrink = 6;
+                if (player.x + hitBoxShrink < obs.x + obs.w - hitBoxShrink &&
+                    player.x + player.w - hitBoxShrink > obs.x + hitBoxShrink &&
+                    player.y + hitBoxShrink < obs.y + obs.h - hitBoxShrink &&
+                    player.y + player.h - hitBoxShrink > obs.y + hitBoxShrink) {
+                    isCollision = true;
+                }
+            }
+
+            if (isCollision) {
+                if (player.invincibleTimer > 0) {
+                    // 无敌状态下撞击障碍物 -> 摧毁并获得额外分数！
+                    createParticles(obs.x + obs.w/2, obs.y + obs.h/2, '#fbbf24', 20, true);
+                    playTone(150, 'sawtooth', 0.3, 0.1, -50); // 摧毁音效
+                    playNoise(0.2, 0.15); // 碎裂噪音
+                    obstacles.splice(i, 1);
+                    i--;
+                    score += 50; 
+                    continue;
+                } else {
+                    triggerGameOver();
+                }
+            }
+
+            // 移除屏幕外的障碍物
+            if (obs.x + obs.w < -20) {
+                obstacles.splice(i, 1);
+                i--;
+                score += 15; // 躲避成功得分
+                playTone(1200, 'sine', 0.1, 0.02); // 成功越过得分音效
+            }
+        }
+    }
+
+    function updateParticles() {
+        for (let i = 0; i < particles.length; i++) {
+            let p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += 0.2; // 粒子重力
+            p.life -= 0.04;
+            if (p.life <= 0) {
+                particles.splice(i, 1);
+                i--;
+            }
+        }
+
+        for (let i = 0; i < lightnings.length; i++) {
+            let l = lightnings[i];
+            l.life--;
+            if (l.life <= 0) {
+                lightnings.splice(i, 1);
+                i--;
+            }
+        }
+    }
+
+    // --- 绘制逻辑 ---
+    function drawBackground() {
+        // 深邃渐变夜空
+        let grad = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+        grad.addColorStop(0, '#0f172a');
+        grad.addColorStop(1, '#1e1b4b');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+        // 视差背景建筑群
+        ctx.fillStyle = '#312e81';
+        bgOffset = (bgOffset - gameSpeed * 0.15) % 800;
+        
+        for (let i = 0; i < 3; i++) {
+            let x = bgOffset + i * 400;
+            ctx.beginPath();
+            ctx.moveTo(x, GROUND_Y);
+            ctx.lineTo(x + 80, 180);
+            ctx.lineTo(x + 180, 260);
+            ctx.lineTo(x + 280, 120);
+            ctx.lineTo(x + 400, GROUND_Y);
+            ctx.fill();
+        }
+
+        // 远景月亮
+        ctx.fillStyle = '#fef08a';
+        ctx.shadowBlur = 30;
+        ctx.shadowColor = '#fef08a';
+        ctx.beginPath();
+        ctx.arc(650, 100, 40, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    function drawGround() {
+        // 绘制基础地面
+        ctx.fillStyle = '#1f2937'; // 灰暗的赛博风地面
+        ctx.fillRect(0, GROUND_Y, GAME_WIDTH, GAME_HEIGHT - GROUND_Y);
+        
+        // 地面顶部的霓虹线
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(0, GROUND_Y, GAME_WIDTH, 6);
+
+        // 绘制深坑掩盖地面
+        for (let obs of obstacles) {
+            if (obs.type === 'pit') {
+                // 坑洞背景色填充（为了看起来像掉进去）
+                let pitGrad = ctx.createLinearGradient(0, GROUND_Y, 0, GAME_HEIGHT);
+                pitGrad.addColorStop(0, '#020617');
+                pitGrad.addColorStop(1, '#000000');
+                ctx.fillStyle = pitGrad;
+                ctx.fillRect(obs.x, GROUND_Y, obs.w, GAME_HEIGHT - GROUND_Y);
+                
+                // 坑边缘的发光警告线
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(obs.x, GROUND_Y, 4, GAME_HEIGHT - GROUND_Y);
+                ctx.fillRect(obs.x + obs.w - 4, GROUND_Y, 4, GAME_HEIGHT - GROUND_Y);
+            }
+        }
+    }
+
+    function drawObstacles() {
+        for (let obs of obstacles) {
+            if (obs.type === 'spike') {
+                // 致命红水晶尖刺
+                ctx.fillStyle = '#dc2626';
+                ctx.beginPath();
+                ctx.moveTo(obs.x + obs.w / 2, obs.y);
+                ctx.lineTo(obs.x + obs.w, obs.y + obs.h);
+                ctx.lineTo(obs.x, obs.y + obs.h);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 尖刺反光
+                ctx.fillStyle = '#fca5a5';
+                ctx.beginPath();
+                ctx.moveTo(obs.x + obs.w / 2, obs.y + 5);
+                ctx.lineTo(obs.x + obs.w / 2 + 6, obs.y + obs.h);
+                ctx.lineTo(obs.x + obs.w / 2 - 2, obs.y + obs.h);
+                ctx.closePath();
+                ctx.fill();
+
+            } else if (obs.type === 'trap') {
+                // 旋转手里剑
+                ctx.save();
+                ctx.translate(obs.x + obs.w / 2, obs.y + obs.h / 2);
+                ctx.rotate(frames * 0.25); // 快速旋转
+                
+                ctx.fillStyle = '#9ca3af';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#818cf8';
+                
+                ctx.beginPath();
+                ctx.moveTo(0, -obs.h/2);
+                ctx.lineTo(obs.w/8, -obs.h/8);
+                ctx.lineTo(obs.w/2, 0);
+                ctx.lineTo(obs.w/8, obs.h/8);
+                ctx.lineTo(0, obs.h/2);
+                ctx.lineTo(-obs.w/8, obs.h/8);
+                ctx.lineTo(-obs.w/2, 0);
+                ctx.lineTo(-obs.w/8, -obs.h/8);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 中心红点
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(0, 0, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+    }
+
+    function drawPlayer() {
+        // 绘制飞雷神残影
+        for (let t of playerTrails) {
+            ctx.fillStyle = `rgba(96, 165, 250, ${t.life / 30})`;
+            ctx.fillRect(t.x, t.y, player.w, player.h);
+        }
+
+        ctx.save();
+        if (player.invincibleTimer > 0) {
+            // 无敌状态：发光蓝色
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#60a5fa';
+            ctx.fillStyle = '#93c5fd';
+        } else {
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#2563eb'; // 普通状态蓝忍者
+        }
+        
+        // 身体
+        ctx.fillRect(player.x, player.y, player.w, player.h);
+        
+        // 忍者头带
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(player.x - 2, player.y + 6, player.w + 4, 8);
+        
+        // 头带飘带随跳跃或速度飘动
+        ctx.beginPath();
+        ctx.moveTo(player.x - 2, player.y + 10);
+        ctx.lineTo(player.x - 15, player.y + 5 - player.vy);
+        ctx.lineTo(player.x - 2, player.y + 14);
+        ctx.fill();
+
+        // 眼睛
+        ctx.fillStyle = '#ffffff';
+        let eyeOffsetY = player.vy > 2 ? 2 : (player.vy < -2 ? -2 : 0); // 视线随跳跃移动
+        ctx.fillRect(player.x + 18, player.y + 18 + eyeOffsetY, 5, 5);
+        ctx.fillRect(player.x + 28, player.y + 18 + eyeOffsetY, 5, 5);
+        
+        ctx.restore();
+    }
+
+    function drawParticles() {
+        for (let p of particles) {
+            ctx.globalAlpha = Math.max(0, p.life);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x, p.y, 4, 4);
+        }
+        ctx.globalAlpha = 1.0;
+
+        // 绘制飞雷神闪电线
+        for (let l of lightnings) {
+            ctx.strokeStyle = `rgba(147, 197, 253, ${l.life / 12})`;
+            ctx.lineWidth = 4;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#60a5fa';
+            ctx.beginPath();
+            ctx.moveTo(l.x - l.w, l.y);
+            
+            let segments = 6;
+            let segW = l.w / segments;
+            for (let j = 1; j <= segments; j++) {
+                ctx.lineTo(l.x - l.w + j * segW, l.y + (Math.random() - 0.5) * 30);
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    function createParticles(x, y, color, count, burst = false) {
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x: x,
+                y: y,
+                vx: (Math.random() - 0.5) * (burst ? 12 : 5),
+                vy: (Math.random() - 0.5) * (burst ? 12 : 5) - (burst ? 0 : 2),
+                life: 1.0,
+                color: color
+            });
+        }
+    }
+
+    function updateUI() {
+        document.getElementById('scoreText').innerText = Math.floor(score);
+        document.getElementById('jumpCountText').innerText = player.jumpsLeft;
+        
+        // 飞雷神冷却遮罩计算
+        let cdPerc = (player.dashCooldown / player.maxDashCooldown) * 100;
+        document.getElementById('dashCooldown').style.height = cdPerc + '%';
+        
+        // 跳跃UI颜色变换
+        const jumpBtn = document.getElementById('jumpBtnLayer');
+        if (player.jumpsLeft === 0) {
+            jumpBtn.className = "w-12 h-12 md:w-16 md:h-16 rounded-full border-4 border-red-500 flex items-center justify-center bg-gray-900/80 text-red-500 shadow-lg shadow-red-500/20 transition-colors";
+        } else {
+            jumpBtn.className = "w-12 h-12 md:w-16 md:h-16 rounded-full border-4 border-green-400 flex items-center justify-center bg-gray-900/80 text-green-400 shadow-lg shadow-green-500/20 transition-colors";
+        }
+    }
+
+    // --- 主循环与流程控制 ---
+    function gameLoop() {
+        if (!gameRunning || isGameOver) return;
+        
+        // 清理画布
+        ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        
+        frames++;
+        score += 0.05; // 随时间缓慢增加得分
+        // 根据时间动态增加游戏速度(难度)
+        gameSpeed = 6 + Math.min(frames / 800, 8); 
+
+        // 数据更新
+        updatePlayer();
+        updateObstacles();
+        updateParticles();
+        
+        // 绘制图层
+        drawBackground();
+        drawGround();
+        drawObstacles();
+        drawParticles();
+        drawPlayer();
+        
+        // DOM UI 更新
+        updateUI();
+        
+        requestAnimationFrame(gameLoop);
+    }
+
+    function triggerGameOver() {
+        isGameOver = true;
+        
+        stopBGM(); // 停止音乐
+        playTone(150, 'sawtooth', 1.0, 0.2, -100); // 死亡陨落音效 (长缓降调)
+        playNoise(0.5, 0.2); // 爆炸声
+        
+        document.getElementById('gameOverScreen').classList.remove('hidden');
+        document.getElementById('gameOverScreen').classList.add('flex');
+        document.getElementById('finalScore').innerText = Math.floor(score);
+        
+        // 震屏效果模拟 (简单 CSS 动画)
+        const container = document.getElementById('game-container');
+        container.style.transform = 'translate(10px, 10px)';
+        setTimeout(() => container.style.transform = 'translate(-10px, -10px)', 50);
+        setTimeout(() => container.style.transform = 'translate(10px, -5px)', 100);
+        setTimeout(() => container.style.transform = 'translate(0, 0)', 150);
+    }
+
+    function resetGame() {
+        player.x = 100;
+        player.y = GROUND_Y - player.h;
+        player.vy = 0;
+        player.jumpsLeft = player.maxJumps;
+        player.dashCooldown = 0;
+        player.invincibleTimer = 0;
+        
+        obstacles = [];
+        particles = [];
+        lightnings = [];
+        playerTrails = [];
+        
+        frames = 0;
+        score = 0;
+        gameSpeed = 6;
+        bgOffset = 0;
+        spawnTimer = 60;
+        
+        isGameOver = false;
+        
+        document.getElementById('gameOverScreen').classList.add('hidden');
+        document.getElementById('gameOverScreen').classList.remove('flex');
+    }
+
+    // 绑定开始与重启按钮
+    document.getElementById('startBtn').addEventListener('click', () => {
+        // 初始化并唤醒音频上下文 (浏览器策略需要用户点击后播放)
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        
+        document.getElementById('startScreen').style.opacity = '0';
+        setTimeout(() => {
+            document.getElementById('startScreen').classList.add('hidden');
+            resetGame();
+            gameRunning = true;
+            startBGM(); // 开始播放BGM
+            requestAnimationFrame(gameLoop);
+        }, 300);
+    });
+
+    document.getElementById('restartBtn').addEventListener('click', () => {
+        resetGame();
+        startBGM(); // 开始播放BGM
+        requestAnimationFrame(gameLoop);
+    });
+
+</script>
+</body>
+</html>

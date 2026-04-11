@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Battle - Final Clean Version</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; font-family:Arial; }
+        body { display:flex; flex-direction:column; align-items:center; background:#111; color:white; padding:10px; }
+        
+        .scoreBox {
+            display:flex;
+            gap: 40px;
+            margin: 10px 0;
+        }
+        #score { font-size:28px; color:#00ff00; }
+        #best { font-size:28px; color: yellow; }
+        
+        #game { border:3px solid white; background:black; }
+        #gameOver {
+            position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+            background:rgba(0,0,0,0.95); padding:40px; border:3px solid red;
+            border-radius:10px; text-align:center; display:none;
+        }
+        #gameOver h2 { color:red; font-size:42px; margin-bottom:20px; }
+        #gameOver p { font-size:24px; margin:10px 0; }
+        #gameOver button { margin-top:20px; padding:12px 30px; background:#00ff00; border:none; font-size:20px; cursor:pointer; border-radius:5px; }
+    </style>
+</head>
+<body>
+    <div class="scoreBox">
+        <div id="score">Your Length: 10</div>
+        <div id="best">Highest Record: 10</div>
+    </div>
+
+    <canvas id="game" width="1400" height="800"></canvas>
+
+    <div id="gameOver">
+        <h2>YOU DIED</h2>
+        <p id="final">Final Length: 0</p>
+        <button onclick="restart()">Play Again</button>
+    </div>
+
+    <script>
+        const BLOCK = 20;
+        const WIDTH = 1400;
+        const HEIGHT = 800;
+        const SPEED = 10;
+        const AI_SLOW_FACTOR = 3;
+        const YOUR_START_LENGTH = 10;
+        const AI_FIXED_START = 10;
+
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+
+        let gameLoop, gameOver = false;
+        let aiMoveTimer = 0;
+
+        let you = { snake: [], dx: BLOCK, dy: 0, color: "#00ff00" };
+
+        let ai1 = { snake: [], dx: -BLOCK, dy: 0, color: "#ff0000" };
+        let ai2 = { snake: [], dx: -BLOCK, dy: 0, color: "#ffff00" };
+        let ai3 = { snake: [], dx: -BLOCK, dy: 0, color: "#ff00ff" };
+        let ai4 = { snake: [], dx: -BLOCK, dy: 0, color: "#00ffff" };
+        let ai5 = { snake: [], dx: -BLOCK, dy: 0, color: "#ffa500" };
+        let allAI = [ai1, ai2, ai3, ai4, ai5];
+
+        let balls = [];
+
+        // -------------------------------
+        // Clean draw + eyes ONLY ON HEAD
+        // -------------------------------
+        function drawSnakePart(x, y, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, BLOCK, BLOCK);
+            ctx.strokeStyle = "#000";
+            ctx.strokeRect(x, y, BLOCK, BLOCK);
+        }
+
+        function drawEyes(x, y, dx, dy) {
+            ctx.fillStyle = "#ffffff";
+            const eyeSize = 4;
+            const offset = 4;
+
+            if (dx > 0) { // right
+                ctx.fillRect(x+BLOCK-offset, y+offset, eyeSize, eyeSize);
+                ctx.fillRect(x+BLOCK-offset, y+BLOCK-offset-eyeSize, eyeSize, eyeSize);
+            } else if (dx < 0) { // left
+                ctx.fillRect(x+offset, y+offset, eyeSize, eyeSize);
+                ctx.fillRect(x+offset, y+BLOCK-offset-eyeSize, eyeSize, eyeSize);
+            } else if (dy > 0) { // down
+                ctx.fillRect(x+offset, y+BLOCK-offset, eyeSize, eyeSize);
+                ctx.fillRect(x+BLOCK-offset-eyeSize, y+BLOCK-offset, eyeSize, eyeSize);
+            } else if (dy < 0) { // up
+                ctx.fillRect(x+offset, y+offset, eyeSize, eyeSize);
+                ctx.fillRect(x+BLOCK-offset-eyeSize, y+offset, eyeSize, eyeSize);
+            }
+        }
+
+        function createSnake(snake, x, y, len) {
+            snake.snake = [];
+            for (let i = 0; i < len; i++) {
+                snake.snake.push({ x: x - i*BLOCK, y: y });
+            }
+        }
+
+        function getNextPos(head, dx, dy) {
+            return { x: head.x + dx, y: head.y + dy };
+        }
+
+        function isSafe(pos, self, others) {
+            if (pos.x < 0 || pos.x >= WIDTH || pos.y < 0 || pos.y >= HEIGHT) return false;
+            for (let s of self.snake) if (pos.x === s.x && pos.y === s.y) return false;
+            for (let o of others) for (let s of o.snake) if (pos.x === s.x && pos.y === s.y) return false;
+            return true;
+        }
+
+        function smartAI(ai) {
+            const head = ai.snake[0];
+            const others = allAI.filter(a => a !== ai);
+
+            let target;
+            const r = Math.random();
+            if (r < 0.85) target = you;
+            else target = [you, ...others][Math.floor(Math.random() * (others.length + 1))];
+
+            let bestDx = 0, bestDy = 0;
+            let bestScore = -99999;
+
+            const dirs = [
+                {dx:BLOCK, dy:0}, {dx:-BLOCK, dy:0},
+                {dx:0, dy:BLOCK}, {dx:0, dy:-BLOCK}
+            ];
+
+            for (let d of dirs) {
+                if (ai.dx === -d.dx && ai.dy === -d.dy) continue;
+                const next = getNextPos(head, d.dx, d.dy);
+                if (!isSafe(next, ai, others)) continue;
+
+                let score = 0;
+                const dist = Math.abs(next.x - target.snake[0].x) + Math.abs(next.y - target.snake[0].y);
+                score -= dist * 3;
+
+                for (let b of balls) {
+                    const d2 = Math.abs(next.x - b.x) + Math.abs(next.y - b.y);
+                    if (d2 < 4) score += 20;
+                }
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestDx = d.dx;
+                    bestDy = d.dy;
+                }
+            }
+
+            ai.dx = bestDx;
+            ai.dy = bestDy;
+
+            const newHead = getNextPos(head, ai.dx, ai.dy);
+            ai.snake.unshift(newHead);
+
+            let ate = false;
+            balls = balls.filter(b => {
+                if (b.x === newHead.x && b.y === newHead.y) {
+                    ate = true;
+                    return false;
+                }
+                return true;
+            });
+
+            if (!ate) ai.snake.pop();
+        }
+
+        function moveYou() {
+            const head = { x: you.snake[0].x + you.dx, y: you.snake[0].y + you.dy };
+            you.snake.unshift(head);
+
+            let ate = false;
+            balls = balls.filter(b => {
+                if (b.x === head.x && b.y === head.y) {
+                    ate = true;
+                    return false;
+                }
+                return true;
+            });
+
+            if (!ate) you.snake.pop();
+            updateScore();
+        }
+
+        function updateScore() {
+            document.getElementById("score").textContent = "Your Length: " + you.snake.length;
+        }
+
+        function loadBest() {
+            let best = localStorage.getItem("snakeBest") || YOUR_START_LENGTH;
+            document.getElementById("best").textContent = "Highest Record: " + best;
+            return parseInt(best);
+        }
+
+        function saveBest() {
+            let current = you.snake.length;
+            let best = loadBest();
+            if (current > best) {
+                localStorage.setItem("snakeBest", current);
+                document.getElementById("best").textContent = "Highest Record: " + current;
+            }
+        }
+
+        // -------------------------------
+        // ✅ AI CAN KILL EACH OTHER
+        // -------------------------------
+        function checkGame() {
+            const yourHead = you.snake[0];
+
+            if (yourHead.x < 0 || yourHead.x >= WIDTH || yourHead.y < 0 || yourHead.y >= HEIGHT) { endGame(); return; }
+
+            // ✅ REMOVED: Self-body collision death
+            // You can now touch your own body and survive
+
+            for (let ai of allAI) {
+                const aiHead = ai.snake[0];
+
+                for (let i = 1; i < ai.snake.length; i++) {
+                    const b = ai.snake[i];
+                    if (yourHead.x === b.x && yourHead.y === b.y) { endGame(); return; }
+                }
+
+                for (let i = 1; i < you.snake.length; i++) {
+                    const b = you.snake[i];
+                    if (aiHead.x === b.x && aiHead.y === b.y) { killAI(ai); return; }
+                }
+
+                for (let other of allAI) {
+                    if (ai === other) continue;
+                    for (let i = 1; i < other.snake.length; i++) {
+                        const b = other.snake[i];
+                        if (aiHead.x === b.x && aiHead.y === b.y) { killAI(ai); return; }
+                    }
+                }
+            }
+        }
+
+        // -------------------------------
+        // ✅ FIXED SPAWN POSITIONS (SIDES ONLY, NO RANDOM)
+        // -------------------------------
+        function killAI(ai) {
+            for (let i = 0; i < 30; i++) {
+                const p = ai.snake[Math.floor(Math.random() * ai.snake.length)];
+                balls.push({ ...p });
+            }
+
+            const calculatedSize = Math.floor(you.snake.length / 4);
+            const newSize = Math.max(AI_FIXED_START, calculatedSize);
+
+            // FIXED SPAWN POINTS (SIDES/CORNERS)
+            if (ai === ai1) createSnake(ai1, 200, 200, newSize);
+            if (ai === ai2) createSnake(ai2, 1200, 200, newSize);
+            if (ai === ai3) createSnake(ai3, 700, 600, newSize);
+            if (ai === ai4) createSnake(ai4, 300, 500, newSize);
+            if (ai === ai5) createSnake(ai5, 1100, 500, newSize);
+        }
+
+        function endGame() {
+            gameOver = true;
+            saveBest();
+            clearInterval(gameLoop);
+            document.getElementById("final").textContent = "Final Length: " + you.snake.length;
+            document.getElementById("gameOver").style.display = "block";
+        }
+
+        function drawAll() {
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+            balls.forEach(b => drawSnakePart(b.x, b.y, "#ffffff"));
+
+            drawSnakePart(you.snake[0].x, you.snake[0].y, you.color);
+            drawEyes(you.snake[0].x, you.snake[0].y, you.dx, you.dy);
+            for (let i = 1; i < you.snake.length; i++) {
+                drawSnakePart(you.snake[i].x, you.snake[i].y, you.color);
+            }
+
+            allAI.forEach(ai => {
+                drawSnakePart(ai.snake[0].x, ai.snake[0].y, ai.color);
+                drawEyes(ai.snake[0].x, ai.snake[0].y, ai.dx, ai.dy);
+                for (let i = 1; i < ai.snake.length; i++) {
+                    drawSnakePart(ai.snake[i].x, ai.snake[i].y, ai.color);
+                }
+            });
+        }
+
+        function update() {
+            if (gameOver) return;
+            moveYou();
+
+            aiMoveTimer++;
+            if (aiMoveTimer >= AI_SLOW_FACTOR) {
+                allAI.forEach(ai => smartAI(ai));
+                aiMoveTimer = 0;
+            }
+
+            checkGame();
+            drawAll();
+        }
+
+        document.addEventListener("keydown", e => {
+            if (gameOver) return;
+            if (e.key === "a" && you.dx === 0) { you.dx = -BLOCK; you.dy = 0; }
+            if (e.key === "d" && you.dx === 0) { you.dx = BLOCK; you.dy = 0; }
+            if (e.key === "w" && you.dy === 0) { you.dy = -BLOCK; you.dx = 0; }
+            if (e.key === "s" && you.dy === 0) { you.dy = BLOCK; you.dx = 0; }
+        });
+
+        function startGame() {
+            createSnake(you, WIDTH/2, HEIGHT/2, YOUR_START_LENGTH);
+
+            // FIXED SPAWNS ON SIDES
+            createSnake(ai1, 200, 200, AI_FIXED_START);
+            createSnake(ai2, 1200, 200, AI_FIXED_START);
+            createSnake(ai3, 700, 600, AI_FIXED_START);
+            createSnake(ai4, 300, 500, AI_FIXED_START);
+            createSnake(ai5, 1100, 500, AI_FIXED_START);
+
+            balls = [];
+            gameOver = false;
+            aiMoveTimer = 0;
+            updateScore();
+            loadBest();
+            document.getElementById("gameOver").style.display = "none";
+            clearInterval(gameLoop);
+            gameLoop = setInterval(update, 1000 / SPEED);
+        }
+
+        function restart() { startGame(); }
+        startGame();
+    </script>
+</body>
+</html>

@@ -1,0 +1,3221 @@
+<!DOCTYPE html>
+<html lang="zh-CN" id="htmlRoot">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="pageTitle">🎮 AI 游戏创作教程 — MG APP Store</title>
+    <link rel="stylesheet" href="assets/style.css">
+    <style>
+        /* ══════════════════════════════════════════════════════
+           Tutorial Page — Gamified UI  v3
+           ══════════════════════════════════════════════════════ */
+
+        /* ── Sticky Top Nav with XP bar ── */
+        .top-nav {
+            flex-direction: column;
+            height: auto;
+            padding: 0;
+        }
+        .nav-top-row {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1.5rem;
+            height: 56px;
+            gap: 0.75rem;
+        }
+        .nav-xp-row {
+            width: 100%;
+            padding: 0 1.5rem 0.55rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .nav-xp-label {
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: rgba(255,255,255,0.7);
+            white-space: nowrap;
+            letter-spacing: 0.3px;
+        }
+        .nav-xp-track {
+            flex: 1;
+            height: 8px;
+            background: rgba(255,255,255,0.18);
+            border-radius: 50px;
+            overflow: hidden;
+        }
+        .nav-xp-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--gold), #ff9500);
+            border-radius: 50px;
+            transition: width 0.8s cubic-bezier(.34,1.56,.64,1);
+            box-shadow: 0 0 8px rgba(255,215,0,0.55);
+            position: relative;
+        }
+        .nav-xp-fill::after {
+            content:'';
+            position:absolute; top:0; left:0; right:0; bottom:0;
+            background: linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.4) 50%,transparent 100%);
+            animation: xp-shine 2.5s infinite;
+            border-radius:50px;
+        }
+        .nav-xp-count {
+            font-size: 0.8rem;
+            font-weight: 900;
+            color: var(--gold);
+            white-space: nowrap;
+        }
+
+        /* ── Lang toggle ── */
+        .btn-lang {
+            padding: 0.35rem 0.8rem;
+            background: rgba(255,255,255,0.15);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50px;
+            color: #fff;
+            font-size: 0.8rem;
+            font-weight: 800;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .btn-lang:hover {
+            background: rgba(255,255,255,0.28);
+            border-color: rgba(255,255,255,0.6);
+        }
+
+        /* ── Hero Slogan ── */
+        .tut-hero {
+            text-align: center;
+            padding: 2rem 1rem 0.8rem;
+        }
+        .tut-hero h1 {
+            font-size: clamp(1.5rem, 4.2vw, 2.5rem);
+            font-weight: 900;
+            color: #fff;
+            line-height: 1.2;
+        }
+        .tut-hero h1 span { color: var(--gold); }
+
+        /* Rotating slogan */
+        .slogan-wrap {
+            margin-top: 0.7rem;
+            min-height: 2.2em;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        .slogan-main {
+            font-size: clamp(0.95rem, 2.5vw, 1.1rem);
+            font-weight: 800;
+            color: rgba(255,255,255,0.95);
+            transition: opacity 0.4s;
+        }
+        .slogan-sub {
+            font-size: 0.82rem;
+            color: rgba(255,255,255,0.6);
+            font-weight: 600;
+        }
+
+        /* Hearts / Lives bar */
+        .hearts-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+            margin-top: 0.6rem;
+        }
+        .heart {
+            font-size: 1.3rem;
+            transition: transform 0.3s, filter 0.3s;
+            display: inline-block;
+        }
+        .heart.lost {
+            filter: grayscale(1) opacity(0.35);
+        }
+        .heart.bounce {
+            animation: heart-bounce 0.45s cubic-bezier(.34,1.56,.64,1);
+        }
+        @keyframes heart-bounce {
+            0%   { transform: scale(1); }
+            40%  { transform: scale(1.5) rotate(-10deg); }
+            70%  { transform: scale(0.9); }
+            100% { transform: scale(1); }
+        }
+        .heart.lose-anim {
+            animation: heart-lose 0.4s ease-in forwards;
+        }
+        @keyframes heart-lose {
+            0%   { transform: scale(1); opacity: 1; }
+            50%  { transform: scale(1.3) translateY(-6px); }
+            100% { transform: scale(0.7); opacity: 0.3; }
+        }
+
+        /* ── XP pop in nav (old section hidden) ── */
+        .xp-bar-wrap { display: none; }
+
+        /* ── Tutorial Hero ── (old p style kept for compat) */
+        .tut-hero p {
+            margin-top: 0.5rem;
+            font-size: 1rem;
+            color: rgba(255,255,255,0.82);
+            font-weight: 600;
+        }
+
+        /* ── XP Progress Bar ── */
+        .xp-bar-wrap {
+            max-width: 860px;
+            margin: 0 auto 0.5rem;
+            padding: 0 1.2rem;
+        }
+        .xp-bar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.45rem;
+        }
+        .xp-label {
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: rgba(255,255,255,0.85);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .xp-count {
+            font-size: 1rem;
+            font-weight: 900;
+            color: var(--gold);
+        }
+        .xp-bar-track {
+            height: 14px;
+            background: rgba(255,255,255,0.18);
+            border-radius: 50px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 6px rgba(0,0,0,0.2);
+        }
+        .xp-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--gold), #ff9500);
+            border-radius: 50px;
+            transition: width 0.8s cubic-bezier(.34,1.56,.64,1);
+            box-shadow: 0 0 12px rgba(255,215,0,0.6);
+            position: relative;
+        }
+        .xp-bar-fill::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%);
+            animation: xp-shine 2.5s infinite;
+            border-radius: 50px;
+        }
+        @keyframes xp-shine {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(200%); }
+        }
+
+        /* ── Badges Row ── */
+        .badges-row {
+            max-width: 860px;
+            margin: 0.8rem auto 1.6rem;
+            padding: 0 1.2rem;
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .badge-chip {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.3rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            transition: all 0.3s;
+            cursor: default;
+        }
+        .badge-chip.locked {
+            background: rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.3);
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+        .badge-chip.locked .badge-icon { filter: grayscale(1); opacity: 0.35; }
+        .badge-chip.unlocked {
+            background: rgba(255,215,0,0.18);
+            color: #fff;
+            border: 2px solid rgba(255,215,0,0.5);
+            box-shadow: 0 0 12px rgba(255,215,0,0.25);
+        }
+        .badge-chip.unlocked .badge-icon { filter: none; }
+        .badge-chip.pop {
+            animation: badge-pop 0.5s cubic-bezier(.34,1.56,.64,1);
+        }
+        @keyframes badge-pop {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .badge-icon { font-size: 1.1rem; }
+
+        /* ── Levels Container ── */
+        .levels-container {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 0 1.2rem 4rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        /* ── Level Card ── */
+        .level-card {
+            border-radius: 20px;
+            overflow: hidden;
+            background: rgba(255,255,255,0.97);
+            color: var(--text-dark);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+            transition: transform 0.25s, box-shadow 0.25s;
+            position: relative;
+        }
+        .level-card.locked-card {
+            opacity: 0.55;
+            filter: grayscale(0.4);
+            pointer-events: none;
+        }
+        .level-card.active-card {
+            box-shadow: 0 0 0 3px var(--blue), 0 12px 40px rgba(24,160,251,0.35);
+            animation: pulse-border 2.5s infinite;
+        }
+        @keyframes pulse-border {
+            0%, 100% { box-shadow: 0 0 0 3px var(--blue), 0 12px 40px rgba(24,160,251,0.25); }
+            50% { box-shadow: 0 0 0 5px var(--blue), 0 16px 50px rgba(24,160,251,0.4); }
+        }
+        .level-card.done-card {
+            box-shadow: 0 0 0 3px var(--green), 0 12px 40px rgba(25,206,96,0.25);
+        }
+        .level-card:not(.locked-card):hover {
+            transform: translateY(-3px);
+            box-shadow: 0 14px 44px rgba(0,0,0,0.24);
+        }
+        .level-card.active-card:not(.locked-card):hover {
+            box-shadow: 0 0 0 3px var(--blue), 0 18px 52px rgba(24,160,251,0.4);
+        }
+
+        /* ── Level Header ── */
+        .level-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.2rem 1.5rem;
+            border-bottom: 2px solid rgba(0,0,0,0.06);
+            cursor: pointer;
+            user-select: none;
+        }
+        .level-dot {
+            width: 48px; height: 48px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem;
+            flex-shrink: 0;
+            font-weight: 900;
+        }
+        .level-dot.green  { background: linear-gradient(135deg, #19CE60, #0da84d); }
+        .level-dot.yellow { background: linear-gradient(135deg, #FFD700, #e6a000); }
+        .level-dot.orange { background: linear-gradient(135deg, #FF9500, #e07000); }
+        .level-dot.red    { background: linear-gradient(135deg, #FF4757, #cc2233); }
+        .level-dot.done   { background: linear-gradient(135deg, #19CE60, #0da84d); }
+        .level-dot.locked { background: #ddd; }
+
+        .level-meta { flex: 1; }
+        .level-num {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+        .level-title {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-top: 0.1rem;
+        }
+
+        .level-xp {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: #e6a000;
+            background: rgba(255,215,0,0.12);
+            padding: 0.3rem 0.7rem;
+            border-radius: 50px;
+        }
+
+        .level-status {
+            font-size: 1.3rem;
+            flex-shrink: 0;
+        }
+
+        .level-chevron {
+            color: #ccc;
+            font-size: 0.9rem;
+            transition: transform 0.3s;
+            flex-shrink: 0;
+        }
+        .level-card.expanded .level-chevron { transform: rotate(180deg); }
+
+        /* ── Level Body ── */
+        .level-body {
+            display: none;
+            padding: 1.5rem;
+        }
+        .level-card.expanded .level-body { display: block; }
+
+        /* ── Section Labels ── */
+        .section-label {
+            font-size: 0.75rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #aaa;
+            margin-bottom: 0.6rem;
+            margin-top: 1.4rem;
+        }
+        .section-label:first-child { margin-top: 0; }
+
+        /* ── Prompt Card ── */
+        .prompt-card {
+            background: #1a1a2e;
+            border-radius: 14px;
+            padding: 1.2rem;
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        .prompt-text {
+            font-family: 'Courier New', 'Consolas', monospace;
+            font-size: 0.88rem;
+            color: #e8f4fc;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .prompt-text .fill-placeholder {
+            color: var(--gold);
+            font-weight: 700;
+        }
+        .btn-copy-prompt {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: rgba(255,255,255,0.7);
+            font-size: 0.78rem;
+            font-weight: 700;
+            font-family: inherit;
+            padding: 0.3rem 0.7rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .btn-copy-prompt:hover {
+            background: rgba(255,255,255,0.2);
+            color: #fff;
+        }
+        .btn-copy-prompt.copied {
+            background: rgba(25,206,96,0.3);
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        /* ── Choices ── */
+        .inspire-box {
+            background: rgba(24,160,251,0.06);
+            border: 2px solid rgba(24,160,251,0.15);
+            border-radius: 14px;
+            padding: 1.1rem 1.2rem;
+            margin-bottom: 1rem;
+        }
+        .inspire-title {
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: var(--blue-dark);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .choices-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.55rem;
+        }
+        .choice-btn {
+            padding: 0.45rem 1rem;
+            border: 2px solid rgba(24,160,251,0.35);
+            border-radius: 50px;
+            background: #fff;
+            color: var(--blue-dark);
+            font-size: 0.85rem;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.18s;
+        }
+        .choice-btn:hover {
+            background: var(--blue);
+            color: #fff;
+            border-color: var(--blue);
+            transform: scale(1.04);
+        }
+        .choice-btn.selected {
+            background: var(--blue);
+            color: #fff;
+            border-color: var(--blue);
+            box-shadow: 0 4px 14px rgba(24,160,251,0.4);
+        }
+
+        /* Custom input for choices */
+        .custom-input-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.6rem;
+        }
+        .custom-input {
+            flex: 1;
+            border: 2px solid rgba(24,160,251,0.3);
+            border-radius: 50px;
+            padding: 0.4rem 1rem;
+            font-size: 0.85rem;
+            font-family: inherit;
+            font-weight: 600;
+            color: var(--text-dark);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .custom-input:focus {
+            border-color: var(--blue);
+        }
+        .custom-input::placeholder { color: #bbb; }
+
+        /* ── Debug Cards ── */
+        .debug-cards { display: flex; flex-direction: column; gap: 1rem; }
+        .debug-card {
+            border-radius: 12px;
+            border: 2px solid rgba(255,71,87,0.2);
+            overflow: hidden;
+        }
+        .debug-card-header {
+            background: rgba(255,71,87,0.08);
+            padding: 0.65rem 1rem;
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: var(--red);
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+        }
+        .debug-card-prompt { padding: 0; }
+        .debug-card .prompt-card {
+            margin: 0;
+            border-radius: 0;
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
+        }
+
+        /* ── Formula Card ── */
+        .formula-card {
+            background: linear-gradient(135deg, rgba(167,139,250,0.12), rgba(24,160,251,0.1));
+            border: 2px solid rgba(167,139,250,0.3);
+            border-radius: 14px;
+            padding: 1.1rem 1.2rem;
+            margin-bottom: 1rem;
+        }
+        .formula-title {
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: var(--purple);
+            margin-bottom: 0.6rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .formula-text {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: var(--text-dark);
+            line-height: 1.9;
+        }
+        .formula-text span { color: var(--blue-dark); font-weight: 700; }
+
+        /* ── Learn Tag ── */
+        .learn-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: rgba(25,206,96,0.1);
+            border: 2px solid rgba(25,206,96,0.25);
+            border-radius: 50px;
+            padding: 0.35rem 0.85rem;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #0da84d;
+            margin-bottom: 1.2rem;
+        }
+
+        /* ── Complete Button ── */
+        .btn-complete-wrap {
+            margin-top: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .btn-complete {
+            padding: 0.75rem 2rem;
+            background: linear-gradient(135deg, var(--green), #0da84d);
+            color: #fff;
+            border: none;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 800;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 16px rgba(25,206,96,0.4);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .btn-complete:hover {
+            transform: scale(1.06);
+            box-shadow: 0 6px 24px rgba(25,206,96,0.55);
+        }
+        .btn-complete:active { transform: scale(0.98); }
+        .btn-complete.already-done {
+            background: linear-gradient(135deg, #aaa, #888);
+            box-shadow: none;
+            cursor: default;
+        }
+        .btn-complete.already-done:hover { transform: none; }
+
+        .xp-preview {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #aaa;
+        }
+        .xp-preview span { color: #e6a000; }
+
+        /* ── XP Popup animation ── */
+        .xp-popup {
+            position: fixed;
+            font-size: 1.6rem;
+            font-weight: 900;
+            color: var(--gold);
+            text-shadow: 0 2px 12px rgba(0,0,0,0.4);
+            pointer-events: none;
+            z-index: 9999;
+            animation: xp-float 1.4s ease-out forwards;
+        }
+        @keyframes xp-float {
+            0%   { opacity: 1; transform: translateY(0) scale(1); }
+            80%  { opacity: 1; transform: translateY(-80px) scale(1.2); }
+            100% { opacity: 0; transform: translateY(-110px) scale(0.9); }
+        }
+
+        /* ── Completion Banner ── */
+        .completion-banner {
+            display: none;
+            max-width: 860px;
+            margin: 0 auto 2rem;
+            padding: 0 1.2rem;
+        }
+        .completion-banner.show { display: block; }
+        .completion-inner {
+            background: linear-gradient(135deg, #002B50, #0a5fa0);
+            border-radius: 20px;
+            padding: 2rem;
+            text-align: center;
+            border: 2px solid rgba(255,215,0,0.4);
+            box-shadow: 0 0 40px rgba(255,215,0,0.2);
+        }
+        .completion-inner h2 {
+            font-size: 2rem;
+            color: var(--gold);
+            margin-bottom: 0.5rem;
+        }
+        .completion-inner p {
+            color: rgba(255,255,255,0.8);
+            font-size: 1.05rem;
+            margin-bottom: 1.2rem;
+        }
+        .title-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255,215,0,0.15);
+            border: 2px solid rgba(255,215,0,0.6);
+            border-radius: 50px;
+            padding: 0.6rem 1.5rem;
+            font-size: 1.1rem;
+            font-weight: 900;
+            color: var(--gold);
+            margin-bottom: 1.2rem;
+        }
+        .btn-store {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.8rem;
+            background: var(--green);
+            color: #002B50;
+            border: none;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 800;
+            font-family: inherit;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .btn-store:hover {
+            background: var(--green-dark);
+            transform: scale(1.06);
+        }
+
+        /* ── Reset Button ── */
+        .btn-reset {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.4rem 1rem;
+            background: transparent;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 50px;
+            color: rgba(255,255,255,0.5);
+            font-size: 0.8rem;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 0.5rem auto 0;
+        }
+        .btn-reset:hover {
+            border-color: rgba(255,71,87,0.5);
+            color: var(--red);
+        }
+
+        /* ── Confetti ── */
+        #confetti-canvas {
+            position: fixed; inset: 0;
+            pointer-events: none;
+            z-index: 9998;
+            display: none;
+        }
+        #confetti-canvas.active { display: block; }
+
+        /* ── Level connector ── */
+        .level-connector {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 24px;
+            margin: -0.5rem 0;
+            position: relative;
+            z-index: 0;
+        }
+        .level-connector::before {
+            content: '';
+            width: 3px;
+            height: 100%;
+            background: rgba(255,255,255,0.2);
+            border-radius: 3px;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .levels-container { padding: 0 0.75rem 3rem; }
+            .level-body { padding: 1rem; }
+            .btn-complete-wrap { flex-direction: column; align-items: stretch; }
+            .btn-complete { justify-content: center; }
+            .badges-row { gap: 0.4rem; }
+            .badge-chip { font-size: 0.75rem; padding: 0.25rem 0.6rem; }
+        }
+
+        /* ── Copy Bounce ── */
+        .btn-copy-prompt.copy-bounce { animation: copy-bounce 0.3s cubic-bezier(.34,1.56,.64,1); }
+        @keyframes copy-bounce { 0%{transform:scale(1)} 50%{transform:scale(1.15)} 100%{transform:scale(1)} }
+
+        /* ── Ripple ── */
+        .choice-btn { position: relative; overflow: hidden; }
+        .ripple { position:absolute; border-radius:50%; background:rgba(255,255,255,0.5); transform:scale(0); animation:ripple-anim 0.5s linear; pointer-events:none; }
+        @keyframes ripple-anim { to { transform:scale(4); opacity:0; } }
+
+        /* ════════════════════════════════════════════════════════════
+           ADVANCED SECTION STYLES
+        ════════════════════════════════════════════════════════════ */
+
+        /* ── Wrapper ── */
+        .adv-section-wrap {
+            max-width: 860px;
+            margin: 2rem auto 0;
+            padding: 0 1.2rem 1rem;
+        }
+
+        /* ── Section Header ── */
+        .adv-section-header {
+            text-align: center;
+            padding: 2.5rem 1rem 1.8rem;
+            position: relative;
+        }
+        .adv-section-header::before {
+            content: '';
+            display: block;
+            width: 60px;
+            height: 3px;
+            background: linear-gradient(90deg, var(--blue), var(--gold));
+            border-radius: 50px;
+            margin: 0 auto 1.5rem;
+        }
+        .adv-section-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: linear-gradient(135deg, rgba(24,160,251,0.15), rgba(124,58,237,0.12));
+            border: 2px solid rgba(24,160,251,0.3);
+            border-radius: 50px;
+            padding: 0.3rem 1rem;
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: rgba(255,255,255,0.9);
+            letter-spacing: 0.5px;
+            margin-bottom: 0.9rem;
+        }
+        .adv-section-title {
+            font-size: clamp(1.3rem, 3.5vw, 2rem);
+            font-weight: 900;
+            color: #fff;
+            line-height: 1.2;
+            margin: 0 0 0.6rem;
+        }
+        .adv-section-sub {
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.65);
+            font-weight: 600;
+            margin: 0;
+        }
+
+        /* ── Cards Grid ── */
+        .adv-cards-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+        }
+
+        /* ── Adv Card ── */
+        .adv-card {
+            border-radius: 18px;
+            overflow: hidden;
+            background: rgba(255,255,255,0.97);
+            color: var(--text-dark);
+            box-shadow: 0 6px 28px rgba(0,0,0,0.14);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .adv-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 36px rgba(0,0,0,0.2);
+        }
+        .adv-card-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.1rem 1.4rem;
+            border-bottom: 2px solid rgba(0,0,0,0.05);
+            cursor: pointer;
+            user-select: none;
+        }
+        .adv-card.expanded .adv-card-header {
+            border-bottom-color: rgba(0,0,0,0.08);
+        }
+        .adv-dot {
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+        .adv-meta { flex: 1; }
+        .adv-num {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #bbb;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+        .adv-title {
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-top: 0.1rem;
+        }
+        .adv-chevron {
+            color: #ccc;
+            font-size: 0.85rem;
+            transition: transform 0.3s;
+            flex-shrink: 0;
+        }
+        .adv-card.expanded .adv-chevron { transform: rotate(180deg); }
+
+        /* ── Adv Body ── */
+        .adv-body {
+            display: none;
+            padding: 1.4rem;
+        }
+        .adv-card.expanded .adv-body { display: block; }
+
+        /* ── Stat Cards ── */
+        .adv-info-grid {
+            display: flex;
+            gap: 0.75rem;
+            margin: 1rem 0;
+        }
+        .adv-stat-card {
+            flex: 1;
+            background: linear-gradient(135deg, rgba(24,160,251,0.07), rgba(24,160,251,0.03));
+            border: 2px solid rgba(24,160,251,0.18);
+            border-radius: 12px;
+            padding: 0.9rem 0.75rem;
+            text-align: center;
+        }
+        .adv-stat-num {
+            font-size: 1.35rem;
+            font-weight: 900;
+            color: var(--blue-dark);
+        }
+        .adv-stat-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #888;
+            margin-top: 0.15rem;
+        }
+
+        /* ── Steps ── */
+        .adv-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+            margin-top: 1rem;
+        }
+        .adv-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+        .adv-step-num {
+            width: 26px; height: 26px;
+            border-radius: 50%;
+            background: var(--blue);
+            color: #fff;
+            font-size: 0.82rem;
+            font-weight: 900;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            margin-top: 0.05rem;
+        }
+        .adv-step-text {
+            font-size: 0.88rem;
+            color: #444;
+            line-height: 1.6;
+        }
+        .adv-step-text code {
+            background: rgba(0,0,0,0.07);
+            padding: 0.1rem 0.35rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+        }
+
+        /* ── API List ── */
+        .adv-api-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+            margin: 0.8rem 0;
+        }
+        .adv-api-item {
+            background: #f8f9ff;
+            border: 2px solid rgba(124,58,237,0.12);
+            border-radius: 12px;
+            padding: 0.9rem 1rem;
+        }
+        .adv-api-name {
+            font-family: 'Courier New', 'Consolas', monospace;
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: #5b21b6;
+            margin-bottom: 0.3rem;
+        }
+        .adv-api-desc {
+            font-size: 0.84rem;
+            color: #444;
+            line-height: 1.5;
+        }
+        .adv-api-when {
+            font-size: 0.78rem;
+            color: #888;
+            margin-top: 0.3rem;
+            font-weight: 600;
+        }
+
+        /* ── Checklist ── */
+        .adv-checklist {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin: 0.8rem 0;
+        }
+        .adv-check-group {
+            background: #f9fafb;
+            border-radius: 12px;
+            padding: 0.9rem 1rem;
+        }
+        .adv-check-title {
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.6rem;
+        }
+        .adv-check-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            padding: 0.3rem 0;
+            cursor: pointer;
+            font-size: 0.87rem;
+            color: #444;
+            line-height: 1.5;
+        }
+        .adv-check-item input[type="checkbox"] {
+            margin-top: 0.15rem;
+            width: 16px; height: 16px;
+            flex-shrink: 0;
+            accent-color: #19CE60;
+            cursor: pointer;
+        }
+        .adv-check-item:hover { color: #222; }
+
+        /* ── Tips ── */
+        .adv-tip-row {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        .adv-tip {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            background: rgba(255,149,0,0.06);
+            border-radius: 10px;
+            padding: 0.55rem 0.8rem;
+        }
+        .adv-tip-icon { font-size: 1rem; flex-shrink: 0; }
+        .adv-tip-text {
+            font-size: 0.85rem;
+            color: #555;
+            line-height: 1.5;
+        }
+        .adv-tip-text code {
+            background: rgba(0,0,0,0.07);
+            padding: 0.1rem 0.35rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+        }
+
+        /* ── Perf Grid ── */
+        .adv-perf-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin: 0.8rem 0;
+        }
+        .adv-perf-item {
+            background: rgba(255,71,87,0.04);
+            border: 2px solid rgba(255,71,87,0.12);
+            border-radius: 12px;
+            padding: 0.9rem;
+        }
+        .adv-perf-icon { font-size: 1.4rem; margin-bottom: 0.35rem; }
+        .adv-perf-title {
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: #333;
+            margin-bottom: 0.3rem;
+        }
+        .adv-perf-desc {
+            font-size: 0.8rem;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        /* ── Money Grid ── */
+        .adv-money-grid {
+            display: flex;
+            gap: 0.75rem;
+            margin: 0.8rem 0;
+        }
+        .adv-money-card {
+            flex: 1;
+            background: linear-gradient(135deg, rgba(255,215,0,0.08), rgba(255,215,0,0.03));
+            border: 2px solid rgba(255,215,0,0.25);
+            border-radius: 14px;
+            padding: 1rem 0.85rem;
+            text-align: center;
+        }
+        .adv-money-icon { font-size: 1.6rem; margin-bottom: 0.4rem; }
+        .adv-money-title {
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: #333;
+            margin-bottom: 0.3rem;
+        }
+        .adv-money-desc {
+            font-size: 0.78rem;
+            color: #666;
+            line-height: 1.5;
+            margin-bottom: 0.5rem;
+        }
+        .adv-money-api {
+            display: inline-block;
+            background: rgba(124,58,237,0.1);
+            border: 1px solid rgba(124,58,237,0.25);
+            border-radius: 6px;
+            padding: 0.15rem 0.5rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #5b21b6;
+        }
+
+        /* ── Footer ── */
+        .adv-footer {
+            text-align: center;
+            padding: 2.5rem 1rem 3rem;
+        }
+        .adv-footer-emoji { font-size: 2.5rem; margin-bottom: 0.75rem; }
+        .adv-footer-text {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 0.4rem;
+        }
+        .adv-footer-sub {
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.55);
+            font-weight: 600;
+        }
+
+        /* ── Lock Gate ── */
+        .adv-lock-gate {
+            position: relative;
+        }
+        .adv-blur-wrap {
+            filter: blur(6px);
+            user-select: none;
+            pointer-events: none;
+            opacity: 0.55;
+            transition: filter 0.6s, opacity 0.6s;
+        }
+        .adv-lock-gate.unlocked .adv-blur-wrap {
+            filter: none;
+            opacity: 1;
+            pointer-events: auto;
+            user-select: auto;
+        }
+        .adv-lock-gate.unlocked .adv-lock-overlay {
+            display: none;
+        }
+
+        /* ── Lock Overlay ── */
+        .adv-lock-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            padding: 1rem;
+        }
+        .adv-lock-box {
+            background: rgba(10, 15, 40, 0.92);
+            border: 2px solid rgba(255,255,255,0.15);
+            border-radius: 24px;
+            padding: 2rem 1.8rem;
+            text-align: center;
+            max-width: 380px;
+            width: 100%;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .adv-lock-icon {
+            font-size: 2.8rem;
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+        .adv-lock-title {
+            font-size: 1.15rem;
+            font-weight: 900;
+            color: #fff;
+            margin-bottom: 0.4rem;
+        }
+        .adv-lock-desc {
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.6);
+            line-height: 1.6;
+            margin: 0 0 1.2rem;
+        }
+
+        /* ── Requirements ── */
+        .adv-lock-reqs {
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+            margin-bottom: 1.4rem;
+            text-align: left;
+        }
+        .adv-lock-req {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 0.75rem 1rem;
+            transition: background 0.3s, border-color 0.3s;
+        }
+        .adv-lock-req.done {
+            background: rgba(25,206,96,0.12);
+            border-color: rgba(25,206,96,0.35);
+        }
+        .adv-lock-req-icon {
+            font-size: 1.3rem;
+            flex-shrink: 0;
+        }
+        .adv-lock-req-title {
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: #fff;
+        }
+        .adv-lock-req-sub {
+            font-size: 0.78rem;
+            color: rgba(255,255,255,0.5);
+            margin-top: 0.1rem;
+        }
+        .adv-lock-req.done .adv-lock-req-sub {
+            color: #19CE60;
+        }
+
+
+        .adv-lock-hint {
+            font-size: 0.78rem;
+            color: rgba(255,255,255,0.35);
+            margin: 0.75rem 0 0;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 540px) {
+            .adv-info-grid { flex-direction: column; }
+            .adv-money-grid { flex-direction: column; }
+            .adv-perf-grid { grid-template-columns: 1fr; }
+        }
+
+    </style>
+</head>
+<body>
+
+<!-- ── Background Deco (same as main site) ── -->
+<div class="bg-deco" aria-hidden="true">
+    <div class="bg-shape"></div><div class="bg-shape"></div>
+    <div class="bg-shape"></div><div class="bg-shape"></div>
+    <div class="bg-cross"></div><div class="bg-cross"></div><div class="bg-cross"></div>
+    <div class="bg-dot"></div><div class="bg-dot"></div><div class="bg-dot"></div><div class="bg-dot"></div>
+    <div class="bg-ring"></div><div class="bg-ring"></div>
+    <div class="bg-star"></div><div class="bg-star"></div>
+</div>
+
+<!-- ── Confetti Canvas ── -->
+<canvas id="confetti-canvas" aria-hidden="true"></canvas>
+
+<!-- ── Top Nav with embedded XP bar ── -->
+<nav class="top-nav" id="topNav">
+    <div class="nav-top-row">
+        <a class="nav-brand" href="index.php">MG <span>APP</span> Store</a>
+        <div class="nav-right">
+            <button class="btn-lang" id="btnLang" onclick="toggleLang()">EN</button>
+            <a class="btn-ghost" href="index.php" id="navBack">← 返回商店</a>
+        </div>
+    </div>
+    <div class="nav-xp-row">
+        <span class="nav-xp-label" id="navXpLabel">⚡ XP</span>
+        <div class="nav-xp-track">
+            <div class="nav-xp-fill" id="xpBarFill" style="width:0%"></div>
+        </div>
+        <span class="nav-xp-count" id="xpCount">0 / 160</span>
+    </div>
+</nav>
+
+<!-- ── Hero ── -->
+<section class="tut-hero">
+    <h1 id="heroTitle">🎮 你的想象力，<span>AI</span> 来实现</h1>
+    <div class="slogan-wrap">
+        <div class="slogan-main" id="sloganMain">世界上只有一个你 — 做出只属于你的游戏！</div>
+        <div class="slogan-sub" id="sloganSub">AI 是你的搭档，创意永远是你的 ✦ 7 关挑战 · 160 XP</div>
+    </div>
+    <!-- Hearts -->
+    <div class="hearts-row" id="heartsRow">
+        <span class="heart" id="heart-1">❤️</span>
+        <span class="heart" id="heart-2">❤️</span>
+        <span class="heart" id="heart-3">❤️</span>
+        <span class="heart" id="heart-4">❤️</span>
+        <span class="heart" id="heart-5">❤️</span>
+    </div>
+</section>
+
+<!-- ── XP Progress Bar (hidden, replaced by nav bar) ── -->
+<div class="xp-bar-wrap">
+    <div class="xp-bar-header">
+        <span class="xp-label" id="xpLabel">⚡ 经验值进度</span>
+        <span class="xp-count" id="xpCountOld">0 / 160 XP</span>
+    </div>
+    <div class="xp-bar-track">
+        <div class="xp-bar-fill" style="width:0%"></div>
+    </div>
+</div>
+
+<!-- ── Streak Display ── -->
+<div id="streakDisplay" style="max-width:860px;margin:0.3rem auto 0;padding:0 1.2rem;display:none;">
+    <span class="streak-chip" id="streakChip">🔥 x1 连击！</span>
+</div>
+
+<!-- ── Badges ── -->
+<div class="badges-row" id="badgesRow">
+    <div class="badge-chip locked" id="badge-fire" title="完成 Level 1 解锁">
+        <span class="badge-icon">🔥</span><span>点火者</span>
+    </div>
+    <div class="badge-chip locked" id="badge-creative" title="在 Level 3 填写自己的技能解锁">
+        <span class="badge-icon">💡</span><span>创意家</span>
+    </div>
+    <div class="badge-chip locked" id="badge-debug" title="完成 Level 4 解锁">
+        <span class="badge-icon">🔧</span><span>Debug 侠</span>
+    </div>
+    <div class="badge-chip locked" id="badge-giant" title="完成 Level 6 解锁">
+        <span class="badge-icon">🌟</span><span>站在巨人肩上</span>
+    </div>
+    <div class="badge-chip locked" id="badge-creator" title="完成全部 7 关解锁">
+        <span class="badge-icon">🎮</span><span>AI 游戏创作者</span>
+    </div>
+</div>
+
+<!-- ── Completion Banner (hidden until all done) ── -->
+<div class="completion-banner" id="completionBanner">
+    <div class="completion-inner">
+        <div style="font-size:3rem;margin-bottom:0.5rem">🎉</div>
+        <h2>恭喜通关！</h2>
+        <p>你已经完成了所有 7 关挑战，获得了 160 XP！</p>
+        <div class="title-badge">🎮 AI 游戏创作者</div>
+        <br>
+        <a href="index.php" class="btn-store">🚀 去 MG APP Store 分享你的游戏！</a>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     LEVELS
+════════════════════════════════════════════════════════════ -->
+<div class="levels-container" id="levelsContainer">
+
+
+    <!-- ══ Level 1 ══════════════════════════════════════════════════ -->
+    <div class="level-card" id="level-1" data-level="1" data-xp="10">
+        <div class="level-header" onclick="toggleLevel(1)">
+            <div class="level-dot green" id="dot-1">🟢</div>
+            <div class="level-meta">
+                <div class="level-num">Level 1</div>
+                <div class="level-title">点火：一句话生成游戏框架</div>
+            </div>
+            <div class="level-xp">⚡ 10 XP</div>
+            <div class="level-status" id="status-1">🔓</div>
+            <div class="level-chevron" id="chevron-1">▼</div>
+        </div>
+        <div class="level-body" id="body-1">
+            <div class="learn-tag">🎯 目标：先跑起来，再说好不好看</div>
+
+            <div class="section-label">📋 核心提示词（一键复制发给 AI）</div>
+            <div class="prompt-card" id="prompt-card-1">
+                <button class="btn-copy-prompt" onclick="copyPrompt(1)">📋 复制</button>
+                <div class="prompt-text" id="prompt-text-1">帮我写一个单页面 HTML 的 <span class="fill-placeholder" id="pt1-hero">Chrome Dino 跑酷</span>游戏，
+不需要任何外部资源，所有代码在一个 .html 文件里，
+可以直接在浏览器打开运行。
+功能只需要：<span class="fill-placeholder" id="pt1-heroname">小恐龙</span>会跑、按空格跳跃、出现<span class="fill-placeholder" id="pt1-obstacle">障碍物（仙人掌）</span>、碰到障碍物游戏结束。</div>
+            </div>
+
+            <div class="inspire-box">
+                <div class="inspire-title">💡 你的主角不一定是恐龙！选一个：</div>
+                <div class="choices-grid" id="choices-1a">
+                    <button class="choice-btn selected" data-group="1a" data-hero="Chrome Dino 跑酷" data-heroname="小恐龙" onclick="selectChoice(this,'1a')">🦕 恐龙</button>
+                    <button class="choice-btn" data-group="1a" data-hero="猫咪跑酷" data-heroname="猫咪" onclick="selectChoice(this,'1a')">🐱 猫咪</button>
+                    <button class="choice-btn" data-group="1a" data-hero="火箭飞行" data-heroname="火箭" onclick="selectChoice(this,'1a')">🚀 火箭</button>
+                    <button class="choice-btn" data-group="1a" data-hero="小人跑酷" data-heroname="小人" onclick="selectChoice(this,'1a')">🧑 小人</button>
+                    <button class="choice-btn" data-group="1a" data-hero="忍者跑酷" data-heroname="忍者" onclick="selectChoice(this,'1a')">🥷 忍者</button>
+                    <button class="choice-btn" data-group="1a" data-hero="机器人跑酷" data-heroname="机器人" onclick="selectChoice(this,'1a')">🤖 机器人</button>
+                </div>
+                <div class="custom-input-wrap">
+                    <span style="font-size:0.85rem;font-weight:700;color:#888">✏️ 自填：</span>
+                    <input class="custom-input" id="custom-1a" placeholder="我的主角是..." oninput="customHero(this)">
+                </div>
+            </div>
+
+            <div class="inspire-box">
+                <div class="inspire-title">💡 障碍物选一个：</div>
+                <div class="choices-grid" id="choices-1b">
+                    <button class="choice-btn selected" data-group="1b" data-obstacle="障碍物（仙人掌）" onclick="selectChoice(this,'1b')">🌵 仙人掌</button>
+                    <button class="choice-btn" data-group="1b" data-obstacle="障碍物（蘑菇）" onclick="selectChoice(this,'1b')">🍄 蘑菇</button>
+                    <button class="choice-btn" data-group="1b" data-obstacle="障碍物（炸弹）" onclick="selectChoice(this,'1b')">💣 炸弹</button>
+                    <button class="choice-btn" data-group="1b" data-obstacle="障碍物（石头）" onclick="selectChoice(this,'1b')">🪨 石头</button>
+                    <button class="choice-btn" data-group="1b" data-obstacle="障碍物（火球）" onclick="selectChoice(this,'1b')">🔥 火球</button>
+                    <button class="choice-btn" data-group="1b" data-obstacle="障碍物（激光）" onclick="selectChoice(this,'1b')">⚡ 激光</button>
+                </div>
+                <div class="custom-input-wrap">
+                    <span style="font-size:0.85rem;font-weight:700;color:#888">✏️ 自填：</span>
+                    <input class="custom-input" id="custom-1b" placeholder="我的障碍物是..." oninput="customObstacle(this)">
+                </div>
+            </div>
+
+            <div class="learn-tag" style="color:#0d7fd4;background:rgba(24,160,251,0.08);border-color:rgba(24,160,251,0.2);">
+                📚 学到什么：单页面 HTML 是关键，先做最小可运行版本
+            </div>
+
+            <div class="btn-complete-wrap">
+                <div class="xp-preview">完成获得 <span>+10 XP</span> 🏅</div>
+                <button class="btn-complete" id="btn-complete-1" onclick="completeLevel(1)">
+                    ✅ 标记完成，领取 10 XP！
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="level-connector"></div>
+
+    <!-- ══ Level 2 ══════════════════════════════════════════════════ -->
+    <div class="level-card locked-card" id="level-2" data-level="2" data-xp="15">
+        <div class="level-header" onclick="toggleLevel(2)">
+            <div class="level-dot green" id="dot-2">🟢</div>
+            <div class="level-meta">
+                <div class="level-num">Level 2</div>
+                <div class="level-title">加上得分和速度</div>
+            </div>
+            <div class="level-xp">⚡ 15 XP</div>
+            <div class="level-status" id="status-2">🔒</div>
+            <div class="level-chevron" id="chevron-2">▼</div>
+        </div>
+        <div class="level-body" id="body-2">
+            <div class="learn-tag">🎯 目标：让游戏有目标感</div>
+
+            <div class="section-label">📋 核心提示词（一键复制发给 AI）</div>
+            <div class="prompt-card">
+                <button class="btn-copy-prompt" onclick="copyPromptStatic(2, this)">📋 复制</button>
+                <div class="prompt-text" id="prompt-text-2">在上面的基础上：
+- 左上角显示分数，<span class="fill-placeholder" id="pt2-scoring">每过 1 秒 +1 分</span>
+- 游戏速度随时间缓慢加快
+- 游戏结束时显示"Game Over"和本次得分，按空格重新开始</div>
+            </div>
+
+            <div class="inspire-box">
+                <div class="inspire-title">💡 分数怎么算才有趣？选一个：</div>
+                <div class="choices-grid" id="choices-2a">
+                    <button class="choice-btn selected" data-group="2a" data-scoring="每过 1 秒 +1 分" onclick="selectChoice(this,'2a')">⏱ 活得越久分越高</button>
+                    <button class="choice-btn" data-group="2a" data-scoring="跳过一个障碍物 +10 分" onclick="selectChoice(this,'2a')">🏆 跳过障碍物 +10 分</button>
+                    <button class="choice-btn" data-group="2a" data-scoring="时间分（每秒+1）和技巧分（跳过障碍物+10）都要" onclick="selectChoice(this,'2a')">🎯 两种都要！</button>
+                </div>
+            </div>
+
+            <div class="learn-tag" style="color:#0d7fd4;background:rgba(24,160,251,0.08);border-color:rgba(24,160,251,0.2);">
+                📚 学到什么：得分设计影响玩家行为，不同规则带来不同体验
+            </div>
+
+            <div class="btn-complete-wrap">
+                <div class="xp-preview">完成获得 <span>+15 XP</span> 🏅</div>
+                <button class="btn-complete" id="btn-complete-2" onclick="completeLevel(2)">
+                    ✅ 标记完成，领取 15 XP！
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="level-connector"></div>
+
+    <!-- ══ Level 3 ══════════════════════════════════════════════════ -->
+    <div class="level-card locked-card" id="level-3" data-level="3" data-xp="25">
+        <div class="level-header" onclick="toggleLevel(3)">
+            <div class="level-dot yellow" id="dot-3">🟡</div>
+            <div class="level-meta">
+                <div class="level-num">Level 3 ⭐</div>
+                <div class="level-title">加一个独一无二的技能</div>
+            </div>
+            <div class="level-xp">⚡ 25 XP</div>
+            <div class="level-status" id="status-3">🔒</div>
+            <div class="level-chevron" id="chevron-3">▼</div>
+        </div>
+        <div class="level-body" id="body-3">
+            <div class="learn-tag">🎯 目标：让你的游戏与众不同的关键一步！</div>
+
+            <div class="inspire-box" style="background:rgba(255,215,0,0.06);border-color:rgba(255,215,0,0.25);">
+                <div class="inspire-title" style="color:#c27a00;">🌟 背景故事</div>
+                <p style="font-size:0.88rem;color:#555;line-height:1.6;">原版 Dino 只会跳。但如果你的角色有一个特殊技能呢？选一个，或者自己想一个！</p>
+            </div>
+
+            <div class="inspire-box">
+                <div class="inspire-title">💡 选择你的技能：</div>
+                <div class="choices-grid" id="choices-3a">
+                    <button class="choice-btn" data-group="3a"
+                        data-skill-name="二段跳" data-skill-key="空格" data-skill-effect="空中再按一次空格，跳得更高" data-skill-cd="无冷却"
+                        onclick="selectSkill(this)">🦅 二段跳</button>
+                    <button class="choice-btn" data-group="3a"
+                        data-skill-name="冲刺" data-skill-key="Shift" data-skill-effect="短暂加速，无敌穿越障碍物" data-skill-cd="3"
+                        onclick="selectSkill(this)">⚡ 冲刺</button>
+                    <button class="choice-btn" data-group="3a"
+                        data-skill-name="护盾" data-skill-key="Z" data-skill-effect="激活一次无敌护盾，吸收伤害" data-skill-cd="5"
+                        onclick="selectSkill(this)">🛡 护盾</button>
+                    <button class="choice-btn" data-group="3a"
+                        data-skill-name="缩小" data-skill-key="↓下箭头" data-skill-effect="蹲下变小，可以躲过高空障碍物" data-skill-cd="无冷却"
+                        onclick="selectSkill(this)">🤏 缩小</button>
+                    <button class="choice-btn" data-group="3a"
+                        data-skill-name="时间减速" data-skill-key="X" data-skill-effect="短暂让障碍物变慢，主角速度不变" data-skill-cd="8"
+                        onclick="selectSkill(this)">⏳ 时间减速</button>
+                    <button class="choice-btn" data-group="3a"
+                        data-skill-name="磁铁" data-skill-key="C" data-skill-effect="吸引屏幕上所有金币/道具靠近主角" data-skill-cd="6"
+                        onclick="selectSkill(this)">🧲 磁铁</button>
+                    <button class="choice-btn" data-group="3a"
+                        data-skill-name="隐身" data-skill-key="V" data-skill-effect="短暂隐身，障碍物无法检测到主角" data-skill-cd="7"
+                        onclick="selectSkill(this)">👻 隐身</button>
+                </div>
+                <div class="custom-input-wrap" style="margin-top:0.8rem">
+                    <span style="font-size:0.85rem;font-weight:700;color:#888">✏️ 自创技能：</span>
+                    <input class="custom-input" id="custom-3a-name" placeholder="技能名称..." oninput="updateCustomSkill()" style="max-width:120px">
+                    <input class="custom-input" id="custom-3a-effect" placeholder="效果描述..." oninput="updateCustomSkill()">
+                </div>
+            </div>
+
+            <div class="section-label">📋 提示词模板（根据你的选择自动填写）</div>
+            <div class="prompt-card">
+                <button class="btn-copy-prompt" onclick="copyPromptStatic(3, this)">📋 复制</button>
+                <div class="prompt-text" id="prompt-text-3">给游戏加一个特殊技能：
+技能名称：<span class="fill-placeholder" id="pt3-name">【请先选择一个技能👆】</span>
+触发方式：按 <span class="fill-placeholder" id="pt3-key">___</span> 键
+效果：<span class="fill-placeholder" id="pt3-effect">___</span>
+冷却时间：<span class="fill-placeholder" id="pt3-cd">___</span> 秒后可以再次使用
+界面上显示技能冷却状态（比如一个小图标变灰表示冷却中）</div>
+            </div>
+
+            <div class="inspire-box" style="background:rgba(255,215,0,0.06);border-color:rgba(255,215,0,0.25);">
+                <div class="inspire-title" style="color:#c27a00;">💡 小提示</div>
+                <p style="font-size:0.85rem;color:#555;line-height:1.6;">技能越简单越好，一句话能说清楚的技能，AI 最容易做对！<br>
+                完成 Level 3 并且填写了自己的技能，还能解锁 <strong>💡 创意家</strong> 徽章！</p>
+            </div>
+
+            <div class="learn-tag" style="color:#0d7fd4;background:rgba(24,160,251,0.08);border-color:rgba(24,160,251,0.2);">
+                📚 学到什么：一个小改动就能让游戏变成你自己的作品
+            </div>
+
+            <div class="btn-complete-wrap">
+                <div class="xp-preview">完成获得 <span>+25 XP</span> 🏅</div>
+                <button class="btn-complete" id="btn-complete-3" onclick="completeLevel(3)">
+                    ✅ 标记完成，领取 25 XP！
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="level-connector"></div>
+
+    <!-- ══ Level 4 ══════════════════════════════════════════════════ -->
+    <div class="level-card locked-card" id="level-4" data-level="4" data-xp="20">
+        <div class="level-header" onclick="toggleLevel(4)">
+            <div class="level-dot yellow" id="dot-4">🟡</div>
+            <div class="level-meta">
+                <div class="level-num">Level 4 🔧</div>
+                <div class="level-title">如何和 AI Debug</div>
+            </div>
+            <div class="level-xp">⚡ 20 XP</div>
+            <div class="level-status" id="status-4">🔒</div>
+            <div class="level-chevron" id="chevron-4">▼</div>
+        </div>
+        <div class="level-body" id="body-4">
+            <div class="learn-tag">🎯 目标：游戏出 bug 不要慌，这是正常的！学会描述问题</div>
+
+            <div class="inspire-box" style="background:rgba(255,71,87,0.05);border-color:rgba(255,71,87,0.2);">
+                <div class="inspire-title" style="color:var(--red);">💪 Debug 不是失败，是开发的一部分！</div>
+                <p style="font-size:0.87rem;color:#555;line-height:1.6;">每个程序员都会遇到 bug。下面是最常见的 3 种问题和应对提示词，遇到问题直接复制用！</p>
+            </div>
+
+            <div class="section-label">📋 常见问题 + 解决提示词</div>
+            <div class="debug-cards">
+                <div class="debug-card">
+                    <div class="debug-card-header">❌ 问题 A：游戏跑不起来，页面空白</div>
+                    <div class="debug-card-prompt">
+                        <div class="prompt-card" style="border-radius:0 0 12px 12px;">
+                            <button class="btn-copy-prompt" onclick="copyDebug(this, '我的 HTML 游戏打开后页面是空白的，请检查代码是否有语法错误，帮我找出问题并修复。')">📋 复制</button>
+                            <div class="prompt-text">我的 HTML 游戏打开后页面是空白的，请检查代码是否有语法错误，
+帮我找出问题并修复。</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="debug-card">
+                    <div class="debug-card-header">🎯 问题 B：碰撞检测不准（明明没碰到却死了）</div>
+                    <div class="debug-card-prompt">
+                        <div class="prompt-card" style="border-radius:0 0 12px 12px;">
+                            <button class="btn-copy-prompt" onclick="copyDebug(this, '游戏里碰撞检测有问题，角色明明没有碰到障碍物但游戏结束了。\n请把碰撞检测的范围缩小 20%，让判定更宽松一些。')">📋 复制</button>
+                            <div class="prompt-text">游戏里碰撞检测有问题，角色明明没有碰到障碍物但游戏结束了。
+请把碰撞检测的范围缩小 20%，让判定更宽松一些。</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="debug-card">
+                    <div class="debug-card-header">⌨️ 问题 C：技能不生效</div>
+                    <div class="debug-card-prompt">
+                        <div class="prompt-card" style="border-radius:0 0 12px 12px;">
+                            <button class="btn-copy-prompt" onclick="copyDebug(this, '我按了 [按键] 但技能没有反应，请检查键盘事件监听是否正确，\n确保在游戏运行状态下按键有效。')">📋 复制</button>
+                            <div class="prompt-text">我按了 [按键] 但技能没有反应，请检查键盘事件监听是否正确，
+确保在游戏运行状态下按键有效。</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-label" style="margin-top:1.4rem">🧠 Debug 万能公式（自己描述问题时用这个框架）</div>
+            <div class="formula-card">
+                <div class="formula-title">🔧 三步描述法</div>
+                <div class="formula-text">
+<span>[描述现象]</span>：我按了___，但是___
+<span>[期望效果]</span>：我希望___
+<span>[请帮我]</span>：检查/修复/调整___</div>
+            </div>
+
+            <div class="learn-tag" style="color:#0d7fd4;background:rgba(24,160,251,0.08);border-color:rgba(24,160,251,0.2);">
+                📚 学到什么：描述清楚 = 解决一半！Debug 是开发的一部分
+            </div>
+
+            <div class="btn-complete-wrap">
+                <div class="xp-preview">完成获得 <span>+20 XP</span> 🏅</div>
+                <button class="btn-complete" id="btn-complete-4" onclick="completeLevel(4)">
+                    ✅ 标记完成，领取 20 XP！
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="level-connector"></div>
+
+    <!-- ══ Level 5 ══════════════════════════════════════════════════ -->
+    <div class="level-card locked-card" id="level-5" data-level="5" data-xp="25">
+        <div class="level-header" onclick="toggleLevel(5)">
+            <div class="level-dot orange" id="dot-5">🟠</div>
+            <div class="level-meta">
+                <div class="level-num">Level 5</div>
+                <div class="level-title">加上音效和视觉反馈</div>
+            </div>
+            <div class="level-xp">⚡ 25 XP</div>
+            <div class="level-status" id="status-5">🔒</div>
+            <div class="level-chevron" id="chevron-5">▼</div>
+        </div>
+        <div class="level-body" id="body-5">
+            <div class="learn-tag">🎯 目标：让每一个动作都有"手感"</div>
+
+            <div class="section-label">📋 核心提示词（一键复制发给 AI）</div>
+            <div class="prompt-card">
+                <button class="btn-copy-prompt" onclick="copyPromptStatic(5, this)">📋 复制</button>
+                <div class="prompt-text" id="prompt-text-5">用 Web Audio API（不引用任何外部文件）给游戏加音效：
+- 跳跃时：轻快的"嗖"声
+- 死亡时：低沉的"嗡"声
+- 技能激活时：<span class="fill-placeholder" id="pt5-sound">清脆的叮声</span>
+
+视觉反馈：
+- 跳跃时角色有轻微的拉伸动画
+- 死亡时屏幕短暂红色闪烁
+- 技能激活时：<span class="fill-placeholder" id="pt5-effect">角色周围出现白色光圈</span></div>
+            </div>
+
+            <div class="inspire-box">
+                <div class="inspire-title">💡 技能激活时应该有什么特效？</div>
+                <div class="choices-grid" id="choices-5a">
+                    <button class="choice-btn selected" data-group="5a"
+                        data-sound="清脆的叮声" data-effect="角色周围出现白色光圈"
+                        onclick="selectEffect(this)">✨ 闪光：白色光圈</button>
+                    <button class="choice-btn" data-group="5a"
+                        data-sound="爆炸感的噼啪声" data-effect="爆出彩色粒子小点"
+                        onclick="selectEffect(this)">🎆 粒子：彩色小点</button>
+                    <button class="choice-btn" data-group="5a"
+                        data-sound="上升的电子音" data-effect="角色颜色变成金色持续 1 秒"
+                        onclick="selectEffect(this)">🌟 变色：金色 1 秒</button>
+                    <button class="choice-btn" data-group="5a"
+                        data-sound="扭曲的摩擦声" data-effect="屏幕轻微震动"
+                        onclick="selectEffect(this)">📳 震屏：屏幕颤动</button>
+                </div>
+                <div class="custom-input-wrap">
+                    <span style="font-size:0.85rem;font-weight:700;color:#888">✏️ 自填：</span>
+                    <input class="custom-input" id="custom-5a-sound" placeholder="音效描述..." oninput="updateCustomEffect()" style="max-width:140px">
+                    <input class="custom-input" id="custom-5a-effect" placeholder="视觉特效描述..." oninput="updateCustomEffect()">
+                </div>
+            </div>
+
+            <div class="learn-tag" style="color:#0d7fd4;background:rgba(24,160,251,0.08);border-color:rgba(24,160,251,0.2);">
+                📚 学到什么：音效 + 视觉反馈 = 游戏"手感"，这是玩家爽感的来源
+            </div>
+
+            <div class="btn-complete-wrap">
+                <div class="xp-preview">完成获得 <span>+25 XP</span> 🏅</div>
+                <button class="btn-complete" id="btn-complete-5" onclick="completeLevel(5)">
+                    ✅ 标记完成，领取 25 XP！
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="level-connector"></div>
+
+    <!-- ══ Level 6 ══════════════════════════════════════════════════ -->
+    <div class="level-card locked-card" id="level-6" data-level="6" data-xp="30">
+        <div class="level-header" onclick="toggleLevel(6)">
+            <div class="level-dot orange" id="dot-6">🟠</div>
+            <div class="level-meta">
+                <div class="level-num">Level 6 🌟</div>
+                <div class="level-title">从 MG APP Store 找灵感</div>
+            </div>
+            <div class="level-xp">⚡ 30 XP</div>
+            <div class="level-status" id="status-6">🔒</div>
+            <div class="level-chevron" id="chevron-6">▼</div>
+        </div>
+        <div class="level-body" id="body-6">
+            <div class="learn-tag">🎯 目标：站在别人的肩膀上，做出更好的东西</div>
+
+            <div class="inspire-box" style="background:rgba(255,215,0,0.06);border-color:rgba(255,215,0,0.25);">
+                <div class="inspire-title" style="color:#c27a00;">📖 操作步骤</div>
+                <div style="counter-reset:step-counter;">
+                    <div style="display:flex;gap:0.75rem;align-items:flex-start;margin-bottom:0.7rem;">
+                        <div style="background:var(--gold);color:#333;border-radius:50%;width:22px;height:22px;min-width:22px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.8rem;">1</div>
+                        <span style="font-size:0.9rem;color:#444;line-height:1.5;">去 <a href="index.php" target="_blank" style="color:var(--blue-dark);font-weight:800;">MG APP Store</a> 找一个你觉得好玩的游戏</span>
+                    </div>
+                    <div style="display:flex;gap:0.75rem;align-items:flex-start;margin-bottom:0.7rem;">
+                        <div style="background:var(--gold);color:#333;border-radius:50%;width:22px;height:22px;min-width:22px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.8rem;">2</div>
+                        <span style="font-size:0.9rem;color:#444;line-height:1.5;">下载它的 HTML 文件（点击游戏卡片上的 ⬇️ 按钮）</span>
+                    </div>
+                    <div style="display:flex;gap:0.75rem;align-items:flex-start;margin-bottom:0.7rem;">
+                        <div style="background:var(--gold);color:#333;border-radius:50%;width:22px;height:22px;min-width:22px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.8rem;">3</div>
+                        <span style="font-size:0.9rem;color:#444;line-height:1.5;">找到你觉得"如果加上___就更好了"的点</span>
+                    </div>
+                    <div style="display:flex;gap:0.75rem;align-items:flex-start;">
+                        <div style="background:var(--gold);color:#333;border-radius:50%;width:22px;height:22px;min-width:22px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.8rem;">4</div>
+                        <span style="font-size:0.9rem;color:#444;line-height:1.5;">用下面的提示词让 AI 帮你嫁接新功能</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-label">📋 提示词模板</div>
+            <div class="prompt-card">
+                <button class="btn-copy-prompt" onclick="copyPromptStatic(6, this)">📋 复制</button>
+                <div class="prompt-text" id="prompt-text-6">这是一个 HTML 游戏的代码：[粘贴代码]
+
+我想在这个游戏里加入一个新功能：
+功能描述：<span class="fill-placeholder" id="pt6-feature">【请在下面填写👇】</span>
+触发条件：<span class="fill-placeholder" id="pt6-trigger">___</span>
+预期效果：<span class="fill-placeholder" id="pt6-expectation">___</span>
+
+请在不破坏原有功能的前提下，加入这个新功能。</div>
+            </div>
+
+            <div class="inspire-box">
+                <div class="inspire-title">✏️ 你找到了什么游戏？想加什么功能？</div>
+                <div style="display:flex;flex-direction:column;gap:0.6rem;">
+                    <div class="custom-input-wrap" style="margin-top:0">
+                        <span style="font-size:0.85rem;font-weight:700;color:#888;white-space:nowrap">我找到的游戏：</span>
+                        <input class="custom-input" id="custom-6a-game" placeholder="游戏名称..." oninput="updateLevel6Prompt()">
+                    </div>
+                    <div class="custom-input-wrap" style="margin-top:0">
+                        <span style="font-size:0.85rem;font-weight:700;color:#888;white-space:nowrap">想加的功能：</span>
+                        <input class="custom-input" id="custom-6a-feature" placeholder="功能描述..." oninput="updateLevel6Prompt()">
+                    </div>
+                    <div class="custom-input-wrap" style="margin-top:0">
+                        <span style="font-size:0.85rem;font-weight:700;color:#888;white-space:nowrap">触发条件：</span>
+                        <input class="custom-input" id="custom-6a-trigger" placeholder="例如：按下 X 键..." oninput="updateLevel6Prompt()">
+                    </div>
+                    <div class="custom-input-wrap" style="margin-top:0">
+                        <span style="font-size:0.85rem;font-weight:700;color:#888;white-space:nowrap">预期效果：</span>
+                        <input class="custom-input" id="custom-6a-effect" placeholder="我觉得这样更好玩，因为..." oninput="updateLevel6Prompt()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="learn-tag" style="color:#0d7fd4;background:rgba(24,160,251,0.08);border-color:rgba(24,160,251,0.2);">
+                📚 学到什么：创新不是从零开始，是在已有基础上加一个"如果……会怎样"
+            </div>
+
+            <div class="btn-complete-wrap">
+                <div class="xp-preview">完成获得 <span>+30 XP</span> 🏅</div>
+                <button class="btn-complete" id="btn-complete-6" onclick="completeLevel(6)">
+                    ✅ 标记完成，领取 30 XP！
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="level-connector"></div>
+
+    <!-- ══ Level 7 ══════════════════════════════════════════════════ -->
+    <div class="level-card locked-card" id="level-7" data-level="7" data-xp="35">
+        <div class="level-header" onclick="toggleLevel(7)">
+            <div class="level-dot red" id="dot-7">🔴</div>
+            <div class="level-meta">
+                <div class="level-num" data-zh="Level 7 🏆" data-en="Level 7 🏆">Level 7 🏆</div>
+                <div class="level-title" data-zh="最终打磨：界面 + 封面 + 分享" data-en="Final Polish: UI + Cover + Share">最终打磨：界面 + 封面 + 分享</div>
+            </div>
+            <div class="level-xp">⚡ 35 XP</div>
+            <div class="level-status" id="status-7">🔒</div>
+            <div class="level-chevron" id="chevron-7">▼</div>
+        </div>
+        <div class="level-body" id="body-7">
+            <div class="learn-tag" data-zh="🎯 目标：让游戏看起来像一个"完整的作品"" data-en="🎯 Goal: Make your game look like a real, complete product">🎯 目标：让游戏看起来像一个"完整的作品"</div>
+
+            <!-- Part A: 游戏名 + 界面提示词 -->
+            <div class="inspire-box" style="background:rgba(255,215,0,0.06);border-color:rgba(255,215,0,0.35);">
+                <div class="inspire-title" style="color:#c27a00;" data-zh="🎮 第一步：给游戏起名字！" data-en="🎮 Step 1: Name your game!">🎮 第一步：给游戏起名字！</div>
+                <p style="font-size:0.87rem;color:#555;margin-bottom:0.8rem;" data-zh="不要叫"Dino Game"，起一个只属于你的名字！名字是作品的灵魂。" data-en="Don't call it 'Dino Game'! A great name is the soul of your game.">不要叫"Dino Game"，起一个只属于你的名字！名字是作品的灵魂。</p>
+                <div class="custom-input-wrap" style="margin-top:0">
+                    <span style="font-size:0.85rem;font-weight:700;color:#888;white-space:nowrap" data-zh="我的游戏名字：" data-en="My game name:">我的游戏名字：</span>
+                    <input class="custom-input" id="custom-7-name" placeholder="✨ 输入你的游戏名..." oninput="updateLevel7Prompt()"
+                        style="font-size:1rem;font-weight:800;border-color:rgba(255,215,0,0.5);" data-ph-zh="✨ 输入你的游戏名..." data-ph-en="✨ Type your game name...">
+                </div>
+                <p style="font-size:0.78rem;color:#aaa;margin-top:0.5rem;" data-zh="💡 取名技巧：用主角名 + 动作词（如"影猫疾冲"）；或感受词（如"无尽长跑"）；或你自己发明的词！" data-en="💡 Name tips: Hero + Action (e.g. 'Shadow Cat Dash'); or a feeling (e.g. 'Endless Sprint'); or invent a word!">💡 取名技巧：用主角名 + 动作词（如"影猫疾冲"）；或感受词（如"无尽长跑"）；或你自己发明的词！</p>
+            </div>
+
+            <div class="section-label" data-zh="📋 提示词 A：加开始 & 结束界面" data-en="📋 Prompt A: Add start screen & game over screen">📋 提示词 A：加开始 & 结束界面</div>
+            <div class="inspire-box" style="background:rgba(24,160,251,0.06);border-color:rgba(24,160,251,0.25);padding:0.75rem 1rem;margin-bottom:0.8rem;">
+                <div style="font-size:0.82rem;color:#0d7fd4;font-weight:800;margin-bottom:0.4rem;">📖 操作说明</div>
+                <ol style="font-size:0.82rem;color:#444;line-height:1.9;margin:0;padding-left:1.2rem;">
+                    <li>👆 先在上方输入你的游戏名字，提示词会自动更新</li>
+                    <li>📋 点击"复制"按钮，把提示词发给 AI</li>
+                    <li>🤖 把 AI 生成的代码替换到你的游戏文件里</li>
+                    <li>🎮 刷新游戏，开始界面和结束界面就出现了！</li>
+                </ol>
+            </div>
+            <div class="prompt-card">
+                <button class="btn-copy-prompt" onclick="copyPromptStatic(7, this)">📋 <span data-zh="复制" data-en="Copy">复制</span></button>
+                <div class="prompt-text" id="prompt-text-7">给游戏加上完整的界面：
+
+开始界面：
+- 显示游戏名称（大字）
+- 显示历史最高分
+- "开始游戏"按钮，带脉冲动画
+
+结束界面：
+- 显示本次得分和最高分
+- "再来一局"按钮
+
+游戏名称叫：<span class="fill-placeholder" id="pt7-name">【请先填写游戏名👆】</span></div>
+            </div>
+
+            <!-- Part B: 封面 & 简介 — 核心新增 -->
+            <div class="section-label" style="margin-top:1.6rem;" data-zh="🎨 第二步：设计游戏封面 & 简介（让人忍不住点击！）" data-en="🎨 Step 2: Design your cover & description (make them click it!)">🎨 第二步：设计游戏封面 & 简介（让人忍不住点击！）</div>
+
+            <div class="inspire-box" style="background:linear-gradient(135deg,rgba(167,139,250,0.08),rgba(24,160,251,0.06));border-color:rgba(167,139,250,0.3);">
+                <div class="inspire-title" style="color:#7c3aed;" data-zh="🧠 封面的秘密：第一眼决定一切" data-en="🧠 Cover secrets: first impression is everything">🧠 封面的秘密：第一眼决定一切</div>
+                <p style="font-size:0.87rem;color:#444;line-height:1.7;margin-bottom:0.8rem;" data-zh="想象你的游戏在 MG APP Store 里，旁边有一百个其他游戏——玩家只有 0.5 秒决定要不要点你的！" data-en="Imagine your game on MG APP Store, next to 100 others — players take 0.5 seconds to decide whether to click you!">想象你的游戏在 MG APP Store 里，旁边有一百个其他游戏——玩家只有 0.5 秒决定要不要点你的！</p>
+
+                <!-- 封面思考题 -->
+                <div style="display:flex;flex-direction:column;gap:1rem;">
+
+                    <!-- 封面颜色 -->
+                    <div>
+                        <div style="font-size:0.82rem;font-weight:800;color:#7c3aed;margin-bottom:0.5rem;" data-zh="🎨 封面主色调（哪种感觉最符合你的游戏？）" data-en="🎨 Cover color vibe (which matches your game best?)">🎨 封面主色调</div>
+                        <div class="choices-grid" id="choices-7color">
+                            <button class="choice-btn" data-group="7color" data-val="火焰红橙" onclick="selectChoice(this,'7color')">🔴 紧张刺激</button>
+                            <button class="choice-btn" data-group="7color" data-val="冷酷蓝紫" onclick="selectChoice(this,'7color')">💜 神秘科幻</button>
+                            <button class="choice-btn" data-group="7color" data-val="活力绿黄" onclick="selectChoice(this,'7color')">💚 轻松欢乐</button>
+                            <button class="choice-btn" data-group="7color" data-val="极致黑金" onclick="selectChoice(this,'7color')">🖤 高冷帅气</button>
+                        </div>
+                    </div>
+
+                    <!-- 封面元素 -->
+                    <div>
+                        <div style="font-size:0.82rem;font-weight:800;color:#7c3aed;margin-bottom:0.5rem;" data-zh="✨ 封面应该有什么？（多选）" data-en="✨ What should be on the cover? (pick any)">✨ 封面应该有什么？</div>
+                        <div class="choices-grid" id="choices-7elem">
+                            <button class="choice-btn" data-group="7elem" data-val="主角大头像" onclick="toggleMultiChoice(this)">🦸 主角特写</button>
+                            <button class="choice-btn" data-group="7elem" data-val="技能发动特效" onclick="toggleMultiChoice(this)">⚡ 技能特效</button>
+                            <button class="choice-btn" data-group="7elem" data-val="游戏场景背景" onclick="toggleMultiChoice(this)">🌄 场景背景</button>
+                            <button class="choice-btn" data-group="7elem" data-val="大号游戏标题文字" onclick="toggleMultiChoice(this)">🔤 游戏标题</button>
+                            <button class="choice-btn" data-group="7elem" data-val="最高分数字" onclick="toggleMultiChoice(this)">🏆 最高分</button>
+                        </div>
+                    </div>
+
+                    <!-- 截图提示词 -->
+                    <div class="prompt-card" style="margin-bottom:0;">
+                        <button class="btn-copy-prompt" onclick="copyPromptStatic('7b', this)">📋 <span data-zh="复制封面提示词" data-en="Copy cover prompt">复制封面提示词</span></button>
+                        <div class="prompt-text" id="prompt-text-7b">帮我设计一张游戏封面截图（用 HTML canvas 或 CSS 实现）：
+
+游戏名称：<span class="fill-placeholder" id="pt7b-name">【填游戏名】</span>
+封面风格：<span class="fill-placeholder" id="pt7b-color">【选择色调】</span>
+封面包含：<span class="fill-placeholder" id="pt7b-elem">【选择元素】</span>
+
+要求：封面比例 4:3，主题突出，视觉冲击力强。
+把封面嵌入游戏的开始界面作为背景。</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 简介工作坊 -->
+            <div class="inspire-box" style="background:rgba(25,206,96,0.05);border-color:rgba(25,206,96,0.25);margin-top:1rem;">
+                <div class="inspire-title" style="color:#0da84d;" data-zh="✍️ 第三步：写一段让人忍不住点击的简介（100字以内！）" data-en="✍️ Step 3: Write an irresistible description (under 100 words!)">✍️ 第三步：写一段让人忍不住点击的简介！</div>
+
+                <!-- 简介公式 -->
+                <div class="formula-card" style="margin-bottom:1rem;">
+                    <div class="formula-title" data-zh="🔑 爆款简介公式" data-en="🔑 Hit description formula">🔑 爆款简介公式</div>
+                    <div class="formula-text">
+<span data-zh="① 一句话说清楚游戏是什么" data-en="① One sentence: what is the game?">① 一句话说清楚游戏是什么</span>
+<span data-zh="② 你的主角/技能有什么特别之处？" data-en="② What makes your hero/skill special?">② 你的主角/技能有什么特别之处？</span>
+<span data-zh="③ 用一个问句挑战玩家（"你能撑过100秒吗？"）" data-en="③ Challenge them with a question ('Can you survive 100 seconds?')">③ 用一个问句挑战玩家！</span></div>
+                </div>
+
+                <!-- 三个范例 -->
+                <div style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1rem;">
+                    <div style="background:#fff;border-radius:10px;padding:0.75rem 1rem;border:2px solid rgba(25,206,96,0.2);">
+                        <div style="font-size:0.72rem;font-weight:800;color:#0da84d;margin-bottom:0.3rem;" data-zh="✅ 好简介示例" data-en="✅ Great example">✅ 好简介示例</div>
+                        <div style="font-size:0.85rem;color:#333;line-height:1.6;" data-zh=""一只忍者猫在霓虹城市里飞奔——障碍物挡不住它，因为它有瞬间隐身术！跳跃、闪身、挑战极限。你能让它跑过 500 米吗？"" data-en=""A ninja cat sprints through neon city — nothing can stop it because it has instant invisibility! Jump, dash, break limits. Can YOU make it past 500 meters?"">"一只忍者猫在霓虹城市里飞奔——障碍物挡不住它，因为它有瞬间隐身术！跳跃、闪身、挑战极限。你能让它跑过 500 米吗？"</div>
+                    </div>
+                    <div style="background:#fff;border-radius:10px;padding:0.75rem 1rem;border:2px solid rgba(255,71,87,0.15);">
+                        <div style="font-size:0.72rem;font-weight:800;color:var(--red);margin-bottom:0.3rem;" data-zh="❌ 不够吸引人" data-en="❌ Not engaging enough">❌ 不够吸引人</div>
+                        <div style="font-size:0.85rem;color:#888;line-height:1.6;" data-zh=""这是一个跑酷游戏，按空格键跳跃，躲避障碍物。"（太平淡，没有个性！）" data-en=""This is a running game. Press space to jump and avoid obstacles." (Too plain, no personality!)">"这是一个跑酷游戏，按空格键跳跃，躲避障碍物。"（太平淡，没有个性！）</div>
+                    </div>
+                </div>
+
+                <!-- 简介输入框 -->
+                <div>
+                    <div style="font-size:0.82rem;font-weight:800;color:#0da84d;margin-bottom:0.5rem;" data-zh="✏️ 写下你的游戏简介（100字以内）：" data-en="✏️ Write your game description (under 100 words):">✏️ 写下你的游戏简介（100字以内）：</div>
+                    <div style="position:relative;">
+                        <textarea id="desc-7"
+                            style="width:100%;min-height:90px;border:2px solid rgba(25,206,96,0.35);border-radius:12px;padding:0.75rem 1rem;font-family:inherit;font-size:0.88rem;color:#333;resize:vertical;outline:none;transition:border-color 0.2s;line-height:1.6;"
+                            placeholder="写下让人心动的简介吧！记住公式：① 是什么 ② 有什么特别 ③ 挑战玩家"
+                            data-ph-zh="写下让人心动的简介吧！记住公式：① 是什么 ② 有什么特别 ③ 挑战玩家"
+                            data-ph-en="Write your irresistible description! Remember: ① What is it ② What's special ③ Challenge the player"
+                            oninput="updateDescCount()" maxlength="200"></textarea>
+                        <div id="descCountWrap" style="position:absolute;bottom:0.5rem;right:0.75rem;font-size:0.75rem;font-weight:800;color:#bbb;">
+                            <span id="descCount">0</span> / 100
+                        </div>
+                    </div>
+                    <!-- Score meter -->
+                    <div id="descScoreMeter" style="margin-top:0.6rem;display:none;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">
+                            <span style="font-size:0.78rem;font-weight:800;color:#888;" data-zh="吸引力评分：" data-en="Appeal score:">吸引力评分：</span>
+                            <span id="descScoreLabel" style="font-size:0.82rem;font-weight:900;color:#aaa;">--</span>
+                        </div>
+                        <div style="height:6px;background:rgba(0,0,0,0.08);border-radius:50px;overflow:hidden;">
+                            <div id="descScoreBar" style="height:100%;border-radius:50px;transition:width 0.5s,background 0.5s;width:0%;background:#aaa;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 上传提示 -->
+            <div class="inspire-box" style="background:linear-gradient(135deg,rgba(25,206,96,0.08),rgba(24,160,251,0.06));border-color:rgba(25,206,96,0.25);">
+                <div class="inspire-title" style="color:#0da84d;" data-zh="🚀 完成后：上传到 MG APP Store！" data-en="🚀 Done? Upload to MG APP Store!">🚀 完成后：上传到 MG APP Store！</div>
+                <p style="font-size:0.88rem;color:#444;line-height:1.6;" data-zh="你的游戏已经有了：专属主角、独特技能、音效手感、完整界面、吸睛封面、让人心动的简介……是时候让世界看到它了！" data-en="Your game now has: unique hero, special skill, sound feedback, polished UI, eye-catching cover, and an irresistible description. Time to share it with the world!">你的游戏已经有了：专属主角、独特技能、音效手感、完整界面、吸睛封面、让人心动的简介……是时候让世界看到它了！</p>
+                <div style="margin-top:0.8rem;">
+                    <a href="index.php" class="btn-store" style="font-size:0.9rem;padding:0.55rem 1.3rem;" data-zh="🚀 去 MG APP Store 上传" data-en="🚀 Upload to MG APP Store">🚀 去 MG APP Store 上传</a>
+                </div>
+            </div>
+
+            <div class="learn-tag" style="color:#0d7fd4;background:rgba(24,160,251,0.08);border-color:rgba(24,160,251,0.2);" data-zh="📚 学到什么：一个好名字 + 封面 + 简介，能让你的游戏获得 10 倍的点击！" data-en="📚 Key insight: A great name + cover + description = 10× more clicks on your game!">
+                📚 学到什么：一个好名字 + 封面 + 简介，能让你的游戏获得 10 倍的点击！
+            </div>
+
+            <div class="btn-complete-wrap">
+                <div class="xp-preview" data-zh="完成获得 <span>+35 XP</span> 🏅" data-en="Earn <span>+35 XP</span> 🏅">完成获得 <span>+35 XP</span> 🏅</div>
+                <button class="btn-complete" id="btn-complete-7" onclick="completeLevel(7)">
+                    🎉 <span data-zh="完成全部挑战，领取 35 XP！" data-en="All done! Claim 35 XP!">完成全部挑战，领取 35 XP！</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /.levels-container -->
+
+<!-- ════════════════════════════════════════════════════════════
+     BONUS: ADVANCED SECTION — 进阶拓展
+════════════════════════════════════════════════════════════ -->
+<div class="adv-section-wrap" id="advSection">
+
+    <!-- Section Header -->
+    <div class="adv-section-header">
+        <div class="adv-section-badge">🚀 进阶拓展</div>
+        <h2 class="adv-section-title">把你的游戏发布到全球平台</h2>
+        <p class="adv-section-sub">完成 7 关后，这里是下一步——让全世界玩家都能玩到你的游戏</p>
+    </div>
+
+    <!-- ── Lock Gate ── -->
+    <div class="adv-lock-gate" id="advLockGate">
+
+        <!-- Blurred content preview -->
+        <div class="adv-blur-wrap" id="advBlurWrap">
+
+    <div class="adv-cards-grid">
+        <!-- ── ADV 1: 什么是 Poki ── -->
+        <div class="adv-card" id="adv-1">
+            <div class="adv-card-header" onclick="toggleAdv(1)">
+                <div class="adv-dot" style="background:linear-gradient(135deg,#18a0fb,#0d7fd4)">🌐</div>
+                <div class="adv-meta">
+                    <div class="adv-num">进阶 01</div>
+                    <div class="adv-title">认识 Poki：全球最大 HTML5 游戏平台</div>
+                </div>
+                <div class="adv-chevron" id="adv-chevron-1">▼</div>
+            </div>
+            <div class="adv-body" id="adv-body-1">
+                <div class="learn-tag" style="background:rgba(24,160,251,0.08);border-color:rgba(24,160,251,0.25);color:#0d7fd4;">🎯 了解游戏发布的目的地</div>
+
+                <div class="adv-info-grid">
+                    <div class="adv-stat-card">
+                        <div class="adv-stat-num">3 亿+</div>
+                        <div class="adv-stat-label">月活跃玩家</div>
+                    </div>
+                    <div class="adv-stat-card">
+                        <div class="adv-stat-num">60+</div>
+                        <div class="adv-stat-label">支持语言</div>
+                    </div>
+                    <div class="adv-stat-card">
+                        <div class="adv-stat-num">免费</div>
+                        <div class="adv-stat-label">发布费用</div>
+                    </div>
+                </div>
+
+                <div class="inspire-box" style="margin-top:1rem;">
+                    <div class="inspire-title">💡 Poki 是什么？</div>
+                    <p style="font-size:0.87rem;color:#444;line-height:1.7;margin:0;">Poki 是全球最大的浏览器游戏平台（poki.com），你可以免费提交你的 HTML5 游戏。Poki 帮你分发游戏，你专注创作——通过广告收入分成获得报酬。</p>
+                </div>
+
+                <div class="adv-steps">
+                    <div class="adv-step">
+                        <div class="adv-step-num">1</div>
+                        <div class="adv-step-text">把游戏打包成单个 <code>.html</code> 文件（你已经会了！）</div>
+                    </div>
+                    <div class="adv-step">
+                        <div class="adv-step-num">2</div>
+                        <div class="adv-step-text">去 <strong>developers.poki.com</strong> 注册开发者账号</div>
+                    </div>
+                    <div class="adv-step">
+                        <div class="adv-step-num">3</div>
+                        <div class="adv-step-text">上传游戏 + 填写名称和简介（你在 Level 7 已经准备好了！）</div>
+                    </div>
+                    <div class="adv-step">
+                        <div class="adv-step-num">4</div>
+                        <div class="adv-step-text">Poki 团队审核（通常 1-2 周），通过后全球上线</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── ADV 2: Poki SDK ── -->
+        <div class="adv-card" id="adv-2">
+            <div class="adv-card-header" onclick="toggleAdv(2)">
+                <div class="adv-dot" style="background:linear-gradient(135deg,#7c3aed,#5b21b6)">⚙️</div>
+                <div class="adv-meta">
+                    <div class="adv-num">进阶 02</div>
+                    <div class="adv-title">接入 Poki SDK：让游戏支持广告</div>
+                </div>
+                <div class="adv-chevron" id="adv-chevron-2">▼</div>
+            </div>
+            <div class="adv-body" id="adv-body-2">
+                <div class="learn-tag" style="background:rgba(124,58,237,0.06);border-color:rgba(124,58,237,0.2);color:#7c3aed;">🎯 Poki 审核必须接入 SDK，4 个 API 就够了</div>
+
+                <div class="section-label">第一步：引入 SDK（加在 &lt;head&gt; 里）</div>
+                <div class="prompt-card">
+                    <button class="btn-copy-prompt" onclick="copyPromptStatic('sdk-load', this)">📋 复制</button>
+                    <div class="prompt-text" id="prompt-text-sdk-load">&lt;script src="https://game-cdn.poki.com/scripts/v2/poki-sdk.js"&gt;&lt;/script&gt;</div>
+                </div>
+
+                <div class="section-label">第二步：4 个核心 API</div>
+                <div class="adv-api-list">
+                    <div class="adv-api-item">
+                        <div class="adv-api-name">PokiSDK.gameLoadingFinished()</div>
+                        <div class="adv-api-desc">🎮 游戏资源加载完毕时调用。告诉 Poki "游戏准备好了"</div>
+                        <div class="adv-api-when">📍 触发时机：所有图片/音频加载完毕后</div>
+                    </div>
+                    <div class="adv-api-item">
+                        <div class="adv-api-name">PokiSDK.gameplayStart()</div>
+                        <div class="adv-api-desc">▶️ 玩家开始实际游玩时调用（不是加载，是真正在玩）</div>
+                        <div class="adv-api-when">📍 触发时机：点击"开始游戏"按钮后</div>
+                    </div>
+                    <div class="adv-api-item">
+                        <div class="adv-api-name">PokiSDK.gameplayStop()</div>
+                        <div class="adv-api-desc">⏸️ 游玩暂停或结束时调用（Game Over 或打开菜单）</div>
+                        <div class="adv-api-when">📍 触发时机：Game Over 时 / 打开暂停菜单时</div>
+                    </div>
+                    <div class="adv-api-item">
+                        <div class="adv-api-name">PokiSDK.commercialBreak()</div>
+                        <div class="adv-api-desc">📺 播放广告。广告结束后自动继续游戏（返回 Promise）</div>
+                        <div class="adv-api-when">📍 触发时机：Game Over 之后、下一局开始之前</div>
+                    </div>
+                </div>
+
+                <div class="section-label" style="margin-top:1.2rem;">📋 完整接入示例（让 AI 帮你改）</div>
+                <div class="prompt-card">
+                    <button class="btn-copy-prompt" onclick="copyPromptStatic('sdk-full', this)">📋 复制提示词</button>
+                    <div class="prompt-text" id="prompt-text-sdk-full">帮我在现有的 HTML 游戏里接入 Poki SDK：
+
+1. 在 &lt;head&gt; 添加 SDK 脚本：
+   &lt;script src="https://game-cdn.poki.com/scripts/v2/poki-sdk.js"&gt;&lt;/script&gt;
+
+2. 游戏加载完成时调用：
+   PokiSDK.gameLoadingFinished()
+
+3. 玩家点击"开始"时调用：
+   PokiSDK.gameplayStart()
+
+4. 游戏结束时调用：
+   PokiSDK.gameplayStop()
+   然后播放广告：
+   await PokiSDK.commercialBreak()
+   广告结束后再允许重新开始
+
+请在不破坏原有游戏逻辑的前提下完成接入。</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── ADV 3: 质量标准 ── -->
+        <div class="adv-card" id="adv-3">
+            <div class="adv-card-header" onclick="toggleAdv(3)">
+                <div class="adv-dot" style="background:linear-gradient(135deg,#19CE60,#0da84d)">✅</div>
+                <div class="adv-meta">
+                    <div class="adv-num">进阶 03</div>
+                    <div class="adv-title">Poki 质量标准：审核通过清单</div>
+                </div>
+                <div class="adv-chevron" id="adv-chevron-3">▼</div>
+            </div>
+            <div class="adv-body" id="adv-body-3">
+                <div class="learn-tag" style="background:rgba(25,206,96,0.08);border-color:rgba(25,206,96,0.25);color:#0da84d;">🎯 对照这份清单，确保游戏能通过审核</div>
+
+                <div class="adv-checklist">
+                    <div class="adv-check-group">
+                        <div class="adv-check-title">🎮 基础功能</div>
+                        <label class="adv-check-item"><input type="checkbox" onchange="updateCheckProgress()"><span>游戏可以在浏览器直接运行，不需要安装任何东西</span></label>
+                        <label class="adv-check-item"><input type="checkbox" onchange="updateCheckProgress()"><span>有清晰的"开始"界面和"重新开始"功能</span></label>
+                        <label class="adv-check-item"><input type="checkbox" onchange="updateCheckProgress()"><span>游戏结束有明确的反馈（Game Over 画面）</span></label>
+                        <label class="adv-check-item"><input type="checkbox" onchange="updateCheckProgress()"><span>无明显 bug，可以正常玩完一局</span></label>
+                    </div>
+                    <div class="adv-check-group">
+                        <div class="adv-check-title">📱 移动端兼容</div>
+                        <label class="adv-check-item"><input type="checkbox" onchange="updateCheckProgress()"><span>在手机屏幕上可以正常显示（不会超出屏幕）</span></label>
+                        <label class="adv-check-item"><input type="checkbox" onchange="updateCheckProgress()"><span>有触摸屏操作支持（点击 = 跳跃）</span></label>
+                        <label class="adv-check-item"><input type="checkbox" onchange="updateCheckProgress()"><span>按钮足够大，手指容易点击（建议 ≥ 44px）</span></label>
+                    </div>
+                    <div class="adv-check-group">
+                        <div class="adv-check-title">⚡ 性能</div>
+                        <label class="adv-check-item"><input type="checkbox" onchange="updateCheckProgress()"><span>游戏加载时间 ＜ 5 秒（单文件 HTML 通常没问题）</span></label>
+                        <label class="adv-check-item"><input type="checkbox" onchange="updateCheckProgress()"><span>运行流畅，没有明显卡顿（60 FPS 最佳）</span></label>
+                    </div>
+                    <div class="adv-check-group">
+                        <div class="adv-check-title">🔌 SDK 接入</div>
+                        <label class="adv-check-item"><input type="checkbox" onchange="updateCheckProgress()"><span>已引入 Poki SDK 脚本</span></label>
+                        <label class="adv-check-item"><input type="checkbox" onchange="updateCheckProgress()"><span>gameLoadingFinished() 在加载完成后调用</span></label>
+                        <label class="adv-check-item"><input type="checkbox" onchange="updateCheckProgress()"><span>gameplayStart() / gameplayStop() 正确调用</span></label>
+                        <label class="adv-check-item"><input type="checkbox" onchange="updateCheckProgress()"><span>Game Over 后有 commercialBreak() 广告逻辑</span></label>
+                    </div>
+                </div>
+
+                <!-- Progress bar for checklist -->
+                <div style="margin-top:1.2rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;">
+                        <span style="font-size:0.8rem;font-weight:800;color:#888;">审核准备度</span>
+                        <span id="checkCount" style="font-size:0.85rem;font-weight:900;color:#19CE60;">0 / 13</span>
+                    </div>
+                    <div style="height:8px;background:rgba(0,0,0,0.08);border-radius:50px;overflow:hidden;">
+                        <div id="checkBar" style="height:100%;background:linear-gradient(90deg,#19CE60,#0da84d);border-radius:50px;width:0%;transition:width 0.5s;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── ADV 4: 移动端适配 ── -->
+        <div class="adv-card" id="adv-4">
+            <div class="adv-card-header" onclick="toggleAdv(4)">
+                <div class="adv-dot" style="background:linear-gradient(135deg,#FF9500,#e07000)">📱</div>
+                <div class="adv-meta">
+                    <div class="adv-num">进阶 04</div>
+                    <div class="adv-title">移动端适配：让手机玩家也能玩</div>
+                </div>
+                <div class="adv-chevron" id="adv-chevron-4">▼</div>
+            </div>
+            <div class="adv-body" id="adv-body-4">
+                <div class="learn-tag" style="background:rgba(255,149,0,0.08);border-color:rgba(255,149,0,0.25);color:#e07000;">🎯 Poki 60% 的流量来自手机，这一步很关键</div>
+
+                <div class="inspire-box" style="background:rgba(255,149,0,0.05);border-color:rgba(255,149,0,0.2);">
+                    <div class="inspire-title" style="color:#e07000;">📱 手机玩家的困境</div>
+                    <p style="font-size:0.87rem;color:#555;line-height:1.6;margin:0;">跑酷游戏默认用键盘空格跳跃，手机没有键盘！你需要加一个触屏跳跃方案。</p>
+                </div>
+
+                <div class="section-label">📋 移动端适配提示词（让 AI 帮你加）</div>
+                <div class="prompt-card">
+                    <button class="btn-copy-prompt" onclick="copyPromptStatic('mobile', this)">📋 复制</button>
+                    <div class="prompt-text" id="prompt-text-mobile">帮我给这个 HTML 游戏加上移动端支持：
+
+1. 触屏跳跃：点击屏幕任意位置 = 跳跃（touchstart 事件）
+2. 画面自适应：用 viewport meta 和 canvas 缩放，
+   确保在手机屏幕上完整显示不超出
+3. 在屏幕下方加一个半透明的大"跳跃"按钮，
+   方便手机玩家操作（仅在触屏设备显示）
+4. 防止手机滑动时误触发页面滚动
+
+请确保电脑键盘操作依然正常。</div>
+                </div>
+
+                <div class="adv-tip-row">
+                    <div class="adv-tip">
+                        <div class="adv-tip-icon">💡</div>
+                        <div class="adv-tip-text">用 <code>navigator.maxTouchPoints &gt; 0</code> 检测是否为触屏设备</div>
+                    </div>
+                    <div class="adv-tip">
+                        <div class="adv-tip-icon">💡</div>
+                        <div class="adv-tip-text">Canvas 尺寸用百分比而非像素，自动适应屏幕</div>
+                    </div>
+                    <div class="adv-tip">
+                        <div class="adv-tip-icon">💡</div>
+                        <div class="adv-tip-text">在 Chrome 开发者工具的"手机模式"测试你的游戏</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── ADV 5: 性能优化 ── -->
+        <div class="adv-card" id="adv-5">
+            <div class="adv-card-header" onclick="toggleAdv(5)">
+                <div class="adv-dot" style="background:linear-gradient(135deg,#FF4757,#cc2233)">⚡</div>
+                <div class="adv-meta">
+                    <div class="adv-num">进阶 05</div>
+                    <div class="adv-title">性能优化：让游戏跑得更顺滑</div>
+                </div>
+                <div class="adv-chevron" id="adv-chevron-5">▼</div>
+            </div>
+            <div class="adv-body" id="adv-body-5">
+                <div class="learn-tag" style="background:rgba(255,71,87,0.06);border-color:rgba(255,71,87,0.2);color:#cc2233;">🎯 卡顿是玩家流失的第一原因</div>
+
+                <div class="section-label">⚡ 性能优化清单（告诉 AI 帮你改）</div>
+
+                <div class="adv-perf-grid">
+                    <div class="adv-perf-item">
+                        <div class="adv-perf-icon">🔄</div>
+                        <div class="adv-perf-title">用 requestAnimationFrame</div>
+                        <div class="adv-perf-desc">不要用 setInterval 做游戏循环，用 requestAnimationFrame 让浏览器在最佳时机渲染</div>
+                    </div>
+                    <div class="adv-perf-item">
+                        <div class="adv-perf-icon">🎨</div>
+                        <div class="adv-perf-title">减少 Canvas 重绘</div>
+                        <div class="adv-perf-desc">每帧只清除需要更新的区域，而不是 clearRect 整个画布</div>
+                    </div>
+                    <div class="adv-perf-item">
+                        <div class="adv-perf-icon">📦</div>
+                        <div class="adv-perf-title">对象池复用</div>
+                        <div class="adv-perf-desc">障碍物不要每次 new 一个新对象，复用已经"死亡"的障碍物对象</div>
+                    </div>
+                    <div class="adv-perf-item">
+                        <div class="adv-perf-icon">🌐</div>
+                        <div class="adv-perf-title">Base64 内嵌图片</div>
+                        <div class="adv-perf-desc">小图片转成 Base64 直接写进 HTML，省去网络请求时间</div>
+                    </div>
+                </div>
+
+                <div class="prompt-card" style="margin-top:1rem;">
+                    <button class="btn-copy-prompt" onclick="copyPromptStatic('perf', this)">📋 复制提示词</button>
+                    <div class="prompt-text" id="prompt-text-perf">帮我优化这个 HTML 游戏的性能：
+
+1. 把 setInterval 游戏循环改为 requestAnimationFrame
+2. 用 delta time 让游戏速度与帧率无关
+   （速度 = 速度 × deltaTime / 16.67）
+3. 障碍物用对象池复用，不要每次 new
+4. 检查是否有内存泄漏（定时器没清理、事件监听没移除）
+
+请保持游戏逻辑不变，只优化底层实现。</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── ADV 6: 变现与收入 ── -->
+        <div class="adv-card" id="adv-6">
+            <div class="adv-card-header" onclick="toggleAdv(6)">
+                <div class="adv-dot" style="background:linear-gradient(135deg,#FFD700,#e6a000)">💰</div>
+                <div class="adv-meta">
+                    <div class="adv-num">进阶 06</div>
+                    <div class="adv-title">变现：你的游戏可以赚钱</div>
+                </div>
+                <div class="adv-chevron" id="adv-chevron-6">▼</div>
+            </div>
+            <div class="adv-body" id="adv-body-6">
+                <div class="learn-tag" style="background:rgba(255,215,0,0.1);border-color:rgba(255,215,0,0.4);color:#b8860b;">🎯 了解 HTML5 游戏的收入模式</div>
+
+                <div class="adv-money-grid">
+                    <div class="adv-money-card">
+                        <div class="adv-money-icon">📺</div>
+                        <div class="adv-money-title">插屏广告</div>
+                        <div class="adv-money-desc">Game Over 后播放短视频广告，是主要收入来源</div>
+                        <div class="adv-money-api"><code>commercialBreak()</code></div>
+                    </div>
+                    <div class="adv-money-card">
+                        <div class="adv-money-icon">🎁</div>
+                        <div class="adv-money-title">激励广告</div>
+                        <div class="adv-money-desc">玩家主动选择看广告，换取道具或复活机会</div>
+                        <div class="adv-money-api"><code>rewardedBreak()</code></div>
+                    </div>
+                    <div class="adv-money-card">
+                        <div class="adv-money-icon">🏪</div>
+                        <div class="adv-money-title">多平台分发</div>
+                        <div class="adv-money-desc">同一个游戏同时发布 Poki、CrazyGames、GameDistribution 等多平台</div>
+                        <div class="adv-money-api" style="background:rgba(25,206,96,0.1);color:#0da84d;border-color:rgba(25,206,96,0.3);">收入 ×3</div>
+                    </div>
+                </div>
+
+                <div class="inspire-box" style="margin-top:1rem;background:rgba(255,215,0,0.06);border-color:rgba(255,215,0,0.3);">
+                    <div class="inspire-title" style="color:#b8860b;">💡 激励广告提示词（让 AI 帮你加"复活"功能）</div>
+                    <div class="prompt-card" style="margin-top:0.75rem;margin-bottom:0;">
+                        <button class="btn-copy-prompt" onclick="copyPromptStatic('rewarded', this)">📋 复制</button>
+                        <div class="prompt-text" id="prompt-text-rewarded">帮我加入激励广告的"复活"功能：
+
+游戏结束时，在 Game Over 界面加一个
+"💎 看广告复活（仅限1次）"按钮。
+
+点击后调用：
+PokiSDK.rewardedBreak().then(success => {
+  if (success) {
+    // 给玩家一次复活机会
+    // 角色回到安全位置，继续游戏
+  }
+});
+
+每局只能复活一次，复活后按钮消失。</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /.adv-cards-grid -->
+
+    <!-- 底部鼓励语 -->
+    <div class="adv-footer">
+        <div class="adv-footer-emoji">🌍</div>
+        <div class="adv-footer-text">你已经从"用 AI 做游戏"进化到"用游戏连接全球玩家"</div>
+        <div class="adv-footer-sub">每一个在 Poki 上运行的游戏，背后都是一个有想象力的创作者 ✦ 也许就是你</div>
+    </div>
+
+        </div><!-- /.adv-blur-wrap -->
+
+        <!-- ── Lock Overlay ── -->
+        <div class="adv-lock-overlay" id="advLockOverlay">
+            <div class="adv-lock-box">
+                <div class="adv-lock-icon" id="advLockIcon">🔒</div>
+                <div class="adv-lock-title">进阶内容已锁定</div>
+                <p class="adv-lock-desc">完成以下两步，解锁"发布到全球平台"进阶内容</p>
+
+                <div class="adv-lock-reqs">
+                    <div class="adv-lock-req" id="req-levels">
+                        <div class="adv-lock-req-icon" id="req-levels-icon">⬜</div>
+                        <div class="adv-lock-req-text">
+                            <div class="adv-lock-req-title">完成全部 7 关挑战</div>
+                            <div class="adv-lock-req-sub" id="req-levels-sub">当前进度：0 / 7 关</div>
+                        </div>
+                    </div>
+                    <div class="adv-lock-req" id="req-upload">
+                        <div class="adv-lock-req-icon" id="req-upload-icon">⬜</div>
+                        <div class="adv-lock-req-text">
+                            <div class="adv-lock-req-title">上传你的游戏到 MG APP Store</div>
+                            <div class="adv-lock-req-sub">让全班同学看到你的作品</div>
+                        </div>
+                    </div>
+                </div>
+
+
+
+                <p class="adv-lock-hint" id="advLockHint">完成 7 关后，上传游戏即可解锁</p>
+            </div>
+        </div><!-- /.adv-lock-overlay -->
+
+    </div><!-- /.adv-lock-gate -->
+
+</div><!-- /.adv-section-wrap -->
+
+<!-- ── Reset Button ── -->
+<div style="text-align:center;padding-bottom:2rem;">
+    <button class="btn-reset" onclick="confirmReset()">🔄 重置进度</button>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════
+   Tutorial JS — Gamification Engine
+════════════════════════════════════════════════════════════ */
+const SAVE_KEY = 'mg_tutorial_v2';
+const TOTAL_XP = 160;
+
+// Level definitions
+const LEVELS = [
+    { id: 1, xp: 10 },
+    { id: 2, xp: 15 },
+    { id: 3, xp: 25 },
+    { id: 4, xp: 20 },
+    { id: 5, xp: 25 },
+    { id: 6, xp: 30 },
+    { id: 7, xp: 35 },
+];
+
+// State
+let state = {
+    completed: [],       // array of level ids
+    customSkill: false,  // true if user typed their own skill in level 3
+    streak: 0,           // consecutive levels completed today
+    lastCompleteDate: '', // date string of last completion
+};
+
+/* ── Load / Save ── */
+function loadState() {
+    try {
+        const raw = localStorage.getItem(SAVE_KEY);
+        if (raw) state = Object.assign(state, JSON.parse(raw));
+    } catch(e) {}
+}
+function saveState() {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+}
+
+/* ── Init ── */
+function init() {
+    loadState();
+    renderAll();
+    renderStreak();
+    // Open first non-completed level
+    const nextLevel = getNextLevel();
+    if (nextLevel) toggleLevel(nextLevel, true);
+
+    // Track click position for ripple
+    document.addEventListener('click', e => { window._lastClickEvent = e; }, true);
+
+    // Hover sfx via event delegation on .choice-btn
+    document.addEventListener('mouseover', e => {
+        if (e.target.closest && e.target.closest('.choice-btn')) {
+            sfx.hover();
+        }
+    });
+}
+
+function getNextLevel() {
+    for (let lv of LEVELS) {
+        if (!state.completed.includes(lv.id)) return lv.id;
+    }
+    return null;
+}
+
+/* ── Render Everything ── */
+function renderAll() {
+    renderXP();
+    renderBadges();
+    renderLevels();
+    renderCompletionBanner();
+    renderAdvLock();
+}
+
+function renderXP() {
+    const earned = state.completed.reduce((sum, id) => {
+        const lv = LEVELS.find(l => l.id === id);
+        return sum + (lv ? lv.xp : 0);
+    }, 0);
+    const pct = Math.round(earned / TOTAL_XP * 100);
+    document.getElementById('xpCount').textContent = earned + ' / ' + TOTAL_XP + ' XP';
+    document.getElementById('xpBarFill').style.width = pct + '%';
+}
+
+function renderBadges() {
+    const done = state.completed;
+    // 🔥 点火者: level 1
+    setBadge('badge-fire', done.includes(1));
+    // 💡 创意家: level 3 + customSkill
+    setBadge('badge-creative', done.includes(3) && state.customSkill);
+    // 🔧 Debug 侠: level 4
+    setBadge('badge-debug', done.includes(4));
+    // 🌟 站在巨人肩上: level 6
+    setBadge('badge-giant', done.includes(6));
+    // 🎮 AI 游戏创作者: all 7
+    setBadge('badge-creator', done.length === 7);
+}
+
+function setBadge(id, unlocked) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const wasLocked = el.classList.contains('locked');
+    el.classList.toggle('locked', !unlocked);
+    el.classList.toggle('unlocked', unlocked);
+    if (unlocked && wasLocked) {
+        el.classList.add('pop');
+        setTimeout(() => el.classList.remove('pop'), 600);
+        sfx.badge();
+    }
+}
+
+function renderLevels() {
+    const done = state.completed;
+    LEVELS.forEach((lv, i) => {
+        const isDone = done.includes(lv.id);
+        const isPrev = i === 0 || done.includes(LEVELS[i-1].id);
+        const isUnlocked = isDone || isPrev;
+
+        const card = document.getElementById('level-' + lv.id);
+        const statusEl = document.getElementById('status-' + lv.id);
+        const dotEl = document.getElementById('dot-' + lv.id);
+        const btnComplete = document.getElementById('btn-complete-' + lv.id);
+        if (!card) return;
+
+        card.classList.remove('locked-card', 'active-card', 'done-card');
+
+        if (isDone) {
+            card.classList.add('done-card');
+            if (statusEl) statusEl.textContent = '✅';
+            if (dotEl) { dotEl.className = 'level-dot done'; dotEl.textContent = '✓'; }
+            if (btnComplete) {
+                btnComplete.textContent = '✅ 已完成！';
+                btnComplete.classList.add('already-done');
+                btnComplete.disabled = true;
+            }
+        } else if (isUnlocked) {
+            card.classList.add('active-card');
+            if (statusEl) statusEl.textContent = '🔓';
+        } else {
+            card.classList.add('locked-card');
+            if (statusEl) statusEl.textContent = '🔒';
+        }
+    });
+}
+
+function renderCompletionBanner() {
+    const banner = document.getElementById('completionBanner');
+    if (state.completed.length === 7) {
+        banner.classList.add('show');
+    } else {
+        banner.classList.remove('show');
+    }
+}
+
+/* ── Toggle Level Expand ── */
+function toggleLevel(id, forceOpen) {
+    const card = document.getElementById('level-' + id);
+    if (!card || card.classList.contains('locked-card')) return;
+    const isExpanded = card.classList.contains('expanded');
+    // Close all
+    document.querySelectorAll('.level-card.expanded').forEach(c => c.classList.remove('expanded'));
+    // Toggle
+    if (!isExpanded || forceOpen) {
+        card.classList.add('expanded');
+        sfx.levelOpen();
+    }
+}
+
+/* ── Complete Level ── */
+function completeLevel(id) {
+    if (state.completed.includes(id)) return;
+    state.completed.push(id);
+
+    // Special: check creative badge
+    if (id === 3) {
+        const nameInput = document.getElementById('custom-3a-name');
+        const effectInput = document.getElementById('custom-3a-effect');
+        if ((nameInput && nameInput.value.trim()) || (effectInput && effectInput.value.trim())) {
+            state.customSkill = true;
+        }
+    }
+
+    // Streak logic
+    const today = new Date().toDateString();
+    if (state.lastCompleteDate !== today) {
+        state.streak = 1;
+    } else {
+        state.streak += 1;
+    }
+    state.lastCompleteDate = today;
+
+    saveState();
+
+    // Sound
+    sfx.complete();
+
+    // XP popup with streak info
+    const lv = LEVELS.find(l => l.id === id);
+    let xpText = '+' + (lv ? lv.xp : 0) + ' XP!';
+    if (state.streak >= 3) {
+        xpText = '+' + (lv ? lv.xp : 0) + ' XP × 🔥' + state.streak + '连击！';
+        setTimeout(() => sfx.badge(), 200);
+    }
+    if (lv) showXPPopup(xpText, document.getElementById('btn-complete-' + id));
+
+    // Show streak display
+    renderStreak();
+
+    // Encouragement toast
+    showEncourageToast(id);
+
+    // Update UI
+    renderAll();
+
+    // Confetti + victory sound on all done
+    if (state.completed.length === 7) {
+        setTimeout(() => {
+            launchConfetti(5000);
+            sfx.victory();
+        }, 400);
+    }
+
+    // Auto-open next level
+    const nextLevel = getNextLevel();
+    if (nextLevel) {
+        setTimeout(() => {
+            toggleLevel(nextLevel, true);
+            document.getElementById('level-' + nextLevel)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            sfx.unlock();
+        }, 600);
+    }
+}
+
+/* ── XP Popup ── */
+function showXPPopup(text, anchor) {
+    const popup = document.createElement('div');
+    popup.className = 'xp-popup';
+    popup.textContent = text;
+    const rect = anchor ? anchor.getBoundingClientRect() : { left: window.innerWidth/2, top: window.innerHeight/2 };
+    popup.style.left = (rect.left + rect.width / 2 - 40) + 'px';
+    popup.style.top = (rect.top + window.scrollY - 20) + 'px';
+    document.body.appendChild(popup);
+    setTimeout(() => popup.remove(), 1500);
+}
+
+/* ── Copy Prompt (Level 1 dynamic) ── */
+function copyPrompt(level) {
+    const el = document.getElementById('prompt-text-' + level);
+    if (!el) return;
+    const text = el.innerText || el.textContent;
+    copyText(text, document.querySelector('[onclick="copyPrompt(' + level + ')"]'));
+}
+function copyPromptStatic(level, btn) {
+    const el = document.getElementById('prompt-text-' + level);
+    if (!el) return;
+    const text = el.innerText || el.textContent;
+    copyText(text, btn);
+}
+function copyDebug(btn, text) {
+    copyText(text, btn);
+}
+function copyText(text, btn) {
+    function onSuccess() {
+        sfx.copy();
+        if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = '✅ 已复制！去 AI 粘贴试试吧';
+            btn.classList.add('copied');
+            btn.classList.remove('copy-bounce');
+            void btn.offsetWidth;
+            btn.classList.add('copy-bounce');
+            setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied', 'copy-bounce'); }, 2200);
+        }
+    }
+    function fallback() {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        onSuccess();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(onSuccess).catch(fallback);
+    } else {
+        fallback();
+    }
+}
+
+/* ── Choice Selection ── */
+function selectChoice(btn, group) {
+    sfx.click();
+    addRipple(btn, window._lastClickEvent);
+    document.querySelectorAll('[data-group="' + group + '"]').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+
+    if (group === '1a') {
+        const hero = btn.dataset.hero;
+        const heroname = btn.dataset.heroname;
+        document.getElementById('pt1-hero').textContent = hero;
+        document.getElementById('pt1-heroname').textContent = heroname;
+        document.getElementById('custom-1a').value = '';
+    } else if (group === '1b') {
+        const obstacle = btn.dataset.obstacle;
+        document.getElementById('pt1-obstacle').textContent = obstacle;
+        document.getElementById('custom-1b').value = '';
+    } else if (group === '2a') {
+        const scoring = btn.dataset.scoring;
+        document.getElementById('pt2-scoring').textContent = scoring;
+    } else if (group === '7color') {
+        updateLevel7CoverPrompt();
+    }
+}
+
+function customHero(input) {
+    if (!input.value.trim()) return;
+    document.querySelectorAll('[data-group="1a"]').forEach(b => b.classList.remove('selected'));
+    document.getElementById('pt1-hero').textContent = input.value + ' 跑酷';
+    document.getElementById('pt1-heroname').textContent = input.value;
+}
+
+function customObstacle(input) {
+    if (!input.value.trim()) return;
+    document.querySelectorAll('[data-group="1b"]').forEach(b => b.classList.remove('selected'));
+    document.getElementById('pt1-obstacle').textContent = '障碍物（' + input.value + '）';
+}
+
+/* ── Skill Selection (Level 3) ── */
+function selectSkill(btn) {
+    sfx.click();
+    addRipple(btn, window._lastClickEvent);
+    const group = '3a';
+    document.querySelectorAll('[data-group="' + group + '"]').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    document.getElementById('pt3-name').textContent = btn.dataset.skillName;
+    document.getElementById('pt3-key').textContent = btn.dataset.skillKey;
+    document.getElementById('pt3-effect').textContent = btn.dataset.skillEffect;
+    document.getElementById('pt3-cd').textContent = btn.dataset.skillCd;
+    // Clear custom inputs
+    document.getElementById('custom-3a-name').value = '';
+    document.getElementById('custom-3a-effect').value = '';
+}
+
+function updateCustomSkill() {
+    const name = document.getElementById('custom-3a-name').value.trim();
+    const effect = document.getElementById('custom-3a-effect').value.trim();
+    if (!name && !effect) return;
+    document.querySelectorAll('[data-group="3a"]').forEach(b => b.classList.remove('selected'));
+    document.getElementById('pt3-name').textContent = name || '【请填写技能名】';
+    document.getElementById('pt3-key').textContent = '你设定的按键';
+    document.getElementById('pt3-effect').textContent = effect || '【请填写效果】';
+    document.getElementById('pt3-cd').textContent = '你设定的冷却';
+    state.customSkill = true;
+}
+
+/* ── Effect Selection (Level 5) ── */
+function selectEffect(btn) {
+    sfx.click();
+    addRipple(btn, window._lastClickEvent);
+    document.querySelectorAll('[data-group="5a"]').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    document.getElementById('pt5-sound').textContent = btn.dataset.sound;
+    document.getElementById('pt5-effect').textContent = btn.dataset.effect;
+    document.getElementById('custom-5a-sound').value = '';
+    document.getElementById('custom-5a-effect').value = '';
+}
+
+function updateCustomEffect() {
+    const sound = document.getElementById('custom-5a-sound').value.trim();
+    const effect = document.getElementById('custom-5a-effect').value.trim();
+    if (!sound && !effect) return;
+    document.querySelectorAll('[data-group="5a"]').forEach(b => b.classList.remove('selected'));
+    if (sound) document.getElementById('pt5-sound').textContent = sound;
+    if (effect) document.getElementById('pt5-effect').textContent = effect;
+}
+
+/* ── Level 6 Prompt Update ── */
+function updateLevel6Prompt() {
+    const feature = document.getElementById('custom-6a-feature').value.trim();
+    const trigger = document.getElementById('custom-6a-trigger').value.trim();
+    const effect  = document.getElementById('custom-6a-effect').value.trim();
+    if (feature) document.getElementById('pt6-feature').textContent = feature;
+    if (trigger) document.getElementById('pt6-trigger').textContent = trigger;
+    if (effect)  document.getElementById('pt6-expectation').textContent = effect;
+}
+
+/* ── Level 7 Prompt Update ── */
+function updateLevel7Prompt() {
+    const name = document.getElementById('custom-7-name').value.trim();
+    // Prompt A: start/end screen
+    document.getElementById('pt7-name').textContent = name || '【请先填写游戏名👆】';
+    // Prompt B: cover
+    document.getElementById('pt7b-name').textContent = name || '【填游戏名】';
+}
+
+/* ── toggleMultiChoice: multi-select for 7elem, updates prompt ── */
+function toggleMultiChoice(btn) {
+    sfx.click();
+    addRipple(btn, window._lastClickEvent);
+    btn.classList.toggle('selected');
+    updateLevel7CoverPrompt();
+}
+
+
+/* ── Update cover prompt (7b) ── */
+function updateLevel7CoverPrompt() {
+    const name = (document.getElementById('custom-7-name').value || '').trim();
+    document.getElementById('pt7b-name').textContent = name || '【填游戏名】';
+
+    const colorBtn = document.querySelector('[data-group="7color"].selected');
+    document.getElementById('pt7b-color').textContent = colorBtn ? colorBtn.dataset.val : '【选择色调】';
+
+    const elemBtns = document.querySelectorAll('[data-group="7elem"].selected');
+    const elems = Array.from(elemBtns).map(b => b.dataset.val);
+    document.getElementById('pt7b-elem').textContent = elems.length ? elems.join('、') : '【选择元素】';
+}
+
+/* ── Desc word count + appeal score ── */
+function updateDescCount() {
+    const ta = document.getElementById('desc-7');
+    const text = ta.value;
+    const len = text.length;
+    document.getElementById('descCount').textContent = len;
+
+    const meter = document.getElementById('descScoreMeter');
+    const bar   = document.getElementById('descScoreBar');
+    const label = document.getElementById('descScoreLabel');
+
+    if (len < 5) { meter.style.display = 'none'; return; }
+    meter.style.display = 'block';
+
+    // Simple appeal scoring
+    let score = 0;
+    if (len >= 20) score += 20;
+    if (len >= 40) score += 15;
+    if (len <= 100) score += 15;
+    if (/[？?！!]/.test(text)) score += 20;   // has question/exclamation
+    if (/[你能|挑战|敢不敢|试试]/.test(text)) score += 15; // challenge words
+    if (/[独特|特别|专属|只有]/.test(text)) score += 15;   // unique words
+    score = Math.min(score, 100);
+
+    bar.style.width = score + '%';
+    if (score >= 75) {
+        bar.style.background = '#19CE60';
+        label.textContent = '🔥 超有吸引力！';
+        label.style.color = '#0da84d';
+    } else if (score >= 45) {
+        bar.style.background = '#FFD700';
+        label.textContent = '👍 还不错，再加点个性！';
+        label.style.color = '#c27a00';
+    } else {
+        bar.style.background = '#FF4757';
+        label.textContent = '💡 试试加个问句挑战玩家';
+        label.style.color = '#cc2233';
+    }
+}
+
+/* ── Reset ── */
+function confirmReset() {
+    if (confirm('确定要重置所有进度吗？这将清除所有已完成关卡和 XP。')) {
+        state = { completed: [], customSkill: false, streak: 0, lastCompleteDate: '' };
+        saveState();
+        renderAll();
+        renderStreak();
+        // Close all expanded
+        document.querySelectorAll('.level-card.expanded').forEach(c => c.classList.remove('expanded'));
+        // Restore complete buttons
+        LEVELS.forEach(lv => {
+            const btn = document.getElementById('btn-complete-' + lv.id);
+            if (btn) {
+                btn.textContent = lv.id === 7
+                    ? '🎉 完成全部挑战，领取 35 XP！'
+                    : '✅ 标记完成，领取 ' + lv.xp + ' XP！';
+                btn.classList.remove('already-done');
+                btn.disabled = false;
+            }
+        });
+        toggleLevel(1, true);
+    }
+}
+
+/* ════════════════════════════════════════════════════════════
+   Confetti Engine
+════════════════════════════════════════════════════════════ */
+function launchConfetti(duration) {
+    const canvas = document.getElementById('confetti-canvas');
+    canvas.classList.add('active');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+
+    const colors = ['#FFD700','#FF4757','#18A0FB','#19CE60','#a78bfa','#ff6b9d','#FFA500'];
+    const pieces = Array.from({length: 150}, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height - canvas.height,
+        r: Math.random() * 7 + 4,
+        d: Math.random() * 150 + 80,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        tilt: Math.random() * 10 - 5,
+        tiltAngleIncr: Math.random() * 0.07 + 0.05,
+        tiltAngle: 0,
+        shape: Math.random() > 0.5 ? 'circle' : 'rect',
+    }));
+
+    let angle = 0;
+    const start = Date.now();
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        angle += 0.01;
+        pieces.forEach(p => {
+            p.tiltAngle += p.tiltAngleIncr;
+            p.y += Math.cos(angle + p.d) + 2.5;
+            p.x += Math.sin(angle) * 2;
+            p.tilt = Math.sin(p.tiltAngle) * 15;
+            ctx.beginPath();
+            ctx.fillStyle = p.color;
+            if (p.shape === 'circle') {
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            } else {
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.tilt * Math.PI / 180);
+                ctx.rect(-p.r, -p.r / 2, p.r * 2, p.r);
+                ctx.restore();
+            }
+            ctx.fill();
+            if (p.y > canvas.height + 20) {
+                p.x = Math.random() * canvas.width;
+                p.y = -20;
+            }
+        });
+        if (Date.now() - start < duration) {
+            requestAnimationFrame(draw);
+        } else {
+            canvas.classList.remove('active');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+    }
+    requestAnimationFrame(draw);
+}
+
+/* ── Resize confetti canvas ── */
+window.addEventListener('resize', () => {
+    const canvas = document.getElementById('confetti-canvas');
+    if (canvas.classList.contains('active')) {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+});
+
+/* ════════════════════════════════════════════════════════════
+   Web Audio API Sound Engine
+════════════════════════════════════════════════════════════ */
+const sfx = (() => {
+    let _ctx = null;
+    function getCtx() {
+        if (!_ctx) _ctx = new (window.AudioContext || window.webkitAudioContext)();
+        return _ctx;
+    }
+
+    function click() {
+        try {
+            const ctx = getCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.type = 'sine'; osc.frequency.setValueAtTime(600, ctx.currentTime);
+            gain.gain.setValueAtTime(0.18, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.06);
+        } catch(e) {}
+    }
+
+    function copy() {
+        try {
+            const ctx = getCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, ctx.currentTime);
+            osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.12);
+            gain.gain.setValueAtTime(0.22, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.12);
+        } catch(e) {}
+    }
+
+    function complete() {
+        try {
+            const ctx = getCtx();
+            const notes = [261.63, 329.63, 392.00]; // C4, E4, G4
+            notes.forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                const rev = ctx.createGain();
+                osc.connect(gain); gain.connect(ctx.destination);
+                osc.type = 'sine'; osc.frequency.setValueAtTime(freq, ctx.currentTime);
+                const t = ctx.currentTime + i * 0.12;
+                gain.gain.setValueAtTime(0, t);
+                gain.gain.linearRampToValueAtTime(0.28, t + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+                osc.start(t); osc.stop(t + 0.2);
+            });
+            // Reverb tail
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.connect(gain2); gain2.connect(ctx.destination);
+            osc2.type = 'sine'; osc2.frequency.setValueAtTime(392.00, ctx.currentTime + 0.36);
+            gain2.gain.setValueAtTime(0.12, ctx.currentTime + 0.36);
+            gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
+            osc2.start(ctx.currentTime + 0.36); osc2.stop(ctx.currentTime + 0.72);
+        } catch(e) {}
+    }
+
+    function unlock() {
+        try {
+            const ctx = getCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(200, ctx.currentTime);
+            osc.frequency.linearRampToValueAtTime(600, ctx.currentTime + 0.3);
+            // Light vibrato
+            const lfo = ctx.createOscillator();
+            const lfoGain = ctx.createGain();
+            lfo.connect(lfoGain); lfoGain.connect(osc.frequency);
+            lfo.frequency.setValueAtTime(8, ctx.currentTime);
+            lfoGain.gain.setValueAtTime(12, ctx.currentTime);
+            gain.gain.setValueAtTime(0.22, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+            lfo.start(ctx.currentTime); lfo.stop(ctx.currentTime + 0.3);
+            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.3);
+        } catch(e) {}
+    }
+
+    function badge() {
+        try {
+            const ctx = getCtx();
+            [880, 1100].forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain); gain.connect(ctx.destination);
+                osc.type = 'sine'; osc.frequency.setValueAtTime(freq, ctx.currentTime);
+                const t = ctx.currentTime + i * 0.1;
+                gain.gain.setValueAtTime(0.2, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+                osc.start(t); osc.stop(t + 0.1);
+            });
+        } catch(e) {}
+    }
+
+    let _lastHover = 0;
+    function hover() {
+        try {
+            const now = Date.now();
+            if (now - _lastHover < 100) return;
+            _lastHover = now;
+            const ctx = getCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.type = 'sine'; osc.frequency.setValueAtTime(400, ctx.currentTime);
+            gain.gain.setValueAtTime(0.03, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.04);
+        } catch(e) {}
+    }
+
+    function levelOpen() {
+        try {
+            const ctx = getCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(150, ctx.currentTime);
+            osc.frequency.linearRampToValueAtTime(300, ctx.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.18, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.16);
+        } catch(e) {}
+    }
+
+    function victory() {
+        try {
+            const ctx = getCtx();
+            // Chord: C4+E4+G4 simultaneously
+            [261.63, 329.63, 392.00].forEach(freq => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain); gain.connect(ctx.destination);
+                osc.type = 'sine'; osc.frequency.setValueAtTime(freq, ctx.currentTime);
+                gain.gain.setValueAtTime(0.18, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+                osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 1.5);
+            });
+            // Sweep
+            const sweepOsc = ctx.createOscillator();
+            const sweepGain = ctx.createGain();
+            sweepOsc.connect(sweepGain); sweepGain.connect(ctx.destination);
+            sweepOsc.type = 'sawtooth';
+            sweepOsc.frequency.setValueAtTime(200, ctx.currentTime);
+            sweepOsc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 1.5);
+            sweepGain.gain.setValueAtTime(0.08, ctx.currentTime);
+            sweepGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+            sweepOsc.start(ctx.currentTime); sweepOsc.stop(ctx.currentTime + 1.5);
+        } catch(e) {}
+    }
+
+    return { click, copy, complete, unlock, badge, hover, levelOpen, victory };
+})();
+
+/* ── Ripple Effect ── */
+function addRipple(btn, evt) {
+    try {
+        const ripple = document.createElement('span');
+        ripple.className = 'ripple';
+        const rect = btn.getBoundingClientRect();
+        const size = Math.max(rect.width, rect.height);
+        let x = (evt ? evt.clientX : rect.left + rect.width / 2) - rect.left - size / 2;
+        let y = (evt ? evt.clientY : rect.top + rect.height / 2) - rect.top - size / 2;
+        ripple.style.cssText = 'width:' + size + 'px;height:' + size + 'px;left:' + x + 'px;top:' + y + 'px;';
+        btn.appendChild(ripple);
+        setTimeout(() => ripple.remove(), 600);
+    } catch(e) {}
+}
+
+/* ── Streak Display ── */
+function renderStreak() {
+    const display = document.getElementById('streakDisplay');
+    const chip = document.getElementById('streakChip');
+    if (!display || !chip) return;
+    if (state.streak >= 2) {
+        chip.textContent = '🔥 x' + state.streak + ' 连击！保持节奏！';
+        display.style.display = '';
+    } else {
+        display.style.display = 'none';
+    }
+}
+
+/* ── Encourage Toast ── */
+const ENCOURAGE_MESSAGES = {
+    1: ["🚀 太棒了！游戏已经在运行了！", "🦕 你的第一个游戏诞生了！", "⚡ 代码魔法生效！"],
+    2: ["🏆 玩家开始争分了！", "💥 现在游戏有了灵魂！", "⏱ 分数让游戏上瘾！"],
+    3: ["✨ 这个技能是世界独一无二的！", "🌟 你的游戏开始有个性了！", "🎯 专属技能解锁！"],
+    4: ["🔧 Debug 大师养成中！", "💪 遇到 bug 不慌，你会解决！", "🧠 描述清楚 = 问题解决一半！"],
+    5: ["🎵 游戏现在有了灵魂！", "🎮 手感！爽感！", "✨ 视觉+音效，双重升级！"],
+    6: ["🌟 站在巨人肩膀上创作！", "🚀 改进别人的作品，也是创新！", "💡 灵感来了！"],
+    7: ["🎉 你做到了！快去分享！", "👑 AI 游戏创作者！恭喜！", "🚀 宇宙级作品诞生！"],
+};
+function showEncourageToast(levelId) {
+    const msgs = ENCOURAGE_MESSAGES[levelId];
+    if (!msgs) return;
+    const msg = msgs[Math.floor(Math.random() * msgs.length)];
+    const toast = document.createElement('div');
+    toast.className = 'encourage-toast';
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.classList.add('toast-out');
+        setTimeout(() => toast.remove(), 350);
+    }, 2500);
+}
+
+/* ── Boot ── */
+document.addEventListener('DOMContentLoaded', init);
+
+/* ════════════════════════════════════════════════════════════
+   ADVANCED SECTION JS
+════════════════════════════════════════════════════════════ */
+
+/* ── Toggle Adv Card ── */
+function toggleAdv(id) {
+    const card = document.getElementById('adv-' + id);
+    if (!card) return;
+    const isExpanded = card.classList.contains('expanded');
+    document.querySelectorAll('.adv-card.expanded').forEach(c => c.classList.remove('expanded'));
+    if (!isExpanded) card.classList.add('expanded');
+}
+
+/* ── Checklist Progress ── */
+function updateCheckProgress() {
+    const all = document.querySelectorAll('.adv-checklist input[type="checkbox"]');
+    const checked = document.querySelectorAll('.adv-checklist input[type="checkbox"]:checked');
+    const total = all.length;
+    const done = checked.length;
+    const el = document.getElementById('checkCount');
+    const bar = document.getElementById('checkBar');
+    if (el) el.textContent = done + ' / ' + total;
+    if (bar) bar.style.width = Math.round(done / total * 100) + '%';
+}
+
+/* ── Advanced Section Lock/Unlock ── */
+function renderAdvLock() {
+    const gate = document.getElementById('advLockGate');
+    if (!gate) return;
+
+    const allDone = state.completed.length >= 7;
+    const uploaded = hasUploadedGame();
+
+    const reqLevels = document.getElementById('req-levels');
+    const reqUpload = document.getElementById('req-upload');
+    const reqLevelsSub = document.getElementById('req-levels-sub');
+    const reqLevelsIcon = document.getElementById('req-levels-icon');
+    const reqUploadIcon = document.getElementById('req-upload-icon');
+
+    if (reqLevelsSub) reqLevelsSub.textContent = '当前进度：' + state.completed.length + ' / 7 关';
+    if (reqLevels) reqLevels.classList.toggle('done', allDone);
+    if (reqLevelsIcon) reqLevelsIcon.textContent = allDone ? '✅' : '⬜';
+    if (reqUpload) reqUpload.classList.toggle('done', uploaded);
+    if (reqUploadIcon) reqUploadIcon.textContent = uploaded ? '✅' : '⬜';
+
+    const hint = document.getElementById('advLockHint');
+    if (hint) {
+        if (!allDone) {
+            hint.textContent = '完成全部 7 关后，上传游戏到 MG APP Store 即可自动解锁';
+        } else if (!uploaded) {
+            hint.textContent = '上传游戏到 MG APP Store 后自动解锁';
+        } else {
+            hint.textContent = '';
+        }
+    }
+
+    if (allDone && uploaded) gate.classList.add('unlocked');
+}
+
+function hasUploadedGame() {
+    try {
+        const tokens = JSON.parse(decodeURIComponent(document.cookie.split(';')
+            .find(c => c.trim().startsWith('mg_edit_tokens='))?.split('=').slice(1).join('=') || '{}'));
+        return Object.keys(tokens).length > 0;
+    } catch(e) { return false; }
+}
+
+// ── Language Toggle ──────────────────────────────────────────────────────────
+let currentLang = 'zh';
+function toggleLang() {
+    currentLang = currentLang === 'zh' ? 'en' : 'zh';
+    const btn = document.getElementById('btnLang');
+    btn.textContent = currentLang === 'zh' ? 'EN' : '中文';
+    document.querySelectorAll('[data-zh]').forEach(el => {
+        el.textContent = currentLang === 'zh' ? el.dataset.zh : el.dataset.en;
+    });
+}
+
+</script>
+
+
+</body>
+</html>

@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>进阶贪吃蛇 - 音效+障碍物+粒子+震动</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: sans-serif;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: #111;
+            color: #fff;
+        }
+
+        .info {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        #canvas {
+            border: 3px solid #0f0;
+            background: #000;
+        }
+
+        .controls {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 8px 16px;
+            background: #0a0;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            background: #333;
+            cursor: not-allowed;
+        }
+
+        #gameOver {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            padding: 30px 50px;
+            border: 2px solid red;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+
+        #gameOver h2 {
+            color: red;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <div>分数: <span id="score">0</span></div>
+        <div>关卡: <span id="level">1</span></div>
+        <div>速度: <span id="speed">180ms</span></div>
+    </div>
+
+    <canvas id="canvas" width="700" height="500"></canvas>
+
+    <div class="controls">
+        <button id="start">开始游戏</button>
+        <button id="pause" disabled>暂停</button>
+    </div>
+
+    <div id="gameOver">
+        <h2>游戏结束</h2>
+        <p>最终分数: <span id="finalScore"></span></p>
+        <button onclick="restart()">再来一局</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const grid = 20;
+        const w = canvas.width / grid | 0;
+        const h = canvas.height / grid | 0;
+
+        let snake = [
+            {x: 10, y: 10},
+            {x: 9, y: 10},
+            {x: 8, y: 10}
+        ];
+        let food = {};
+        let obstacles = [];
+        let dir = {x: 1, y: 0};
+        let nextDir = {x: 1, y: 0};
+        let score = 0;
+        let level = 1;
+        let baseSpeed = 180;
+        let currentSpeed = baseSpeed;
+        let loop;
+        let running = false;
+        let paused = false;
+        let boosting = false;
+
+        let particles = [];
+        let shake = 0;
+
+        // === 音效 ===
+        const audioContext = new (window.AudioContext || webkitAudioContext)();
+
+        function beep(freq, dur) {
+            const o = audioContext.createOscillator();
+            const g = audioContext.createGain();
+            o.connect(g);
+            g.connect(audioContext.destination);
+            o.frequency.value = freq;
+            o.type = 'square';
+            g.gain.value = 0.2;
+            o.start();
+            o.stop(audioContext.currentTime + dur);
+        }
+
+        function eatSound() { beep(660, 0.08); }
+        function dieSound() { beep(220, 0.3); }
+
+        // === 随机食物 ===
+        function spawnFood() {
+            food = {
+                x: Math.random() * w | 0,
+                y: Math.random() * h | 0
+            };
+            if (snake.some(s=>s.x===food.x&&s.y===food.y) ||
+                obstacles.some(o=>o.x===food.x&&o.y===food.y)) spawnFood();
+        }
+
+        // === 障碍物 ===
+        function spawnObstacles(count) {
+            obstacles = [];
+            for (let i=0; i<count; i++) {
+                let ox = Math.random()*w|0;
+                let oy = Math.random()*h|0;
+                if (snake.some(s=>s.x===ox&&s.y===oy)) { i--; continue; }
+                obstacles.push({x:ox, y:oy});
+            }
+        }
+
+        // === 粒子 ===
+        function addParticles(x, y) {
+            for (let i=0; i<8; i++) {
+                particles.push({
+                    x: x*grid+grid/2,
+                    y: y*grid+grid/2,
+                    vx: (Math.random()-0.5)*4,
+                    vy: (Math.random()-0.5)*4,
+                    life: 30,
+                    color: `hsl(${Math.random()*60+90},100%,60%)`
+                });
+            }
+        }
+
+        function drawParticles() {
+            particles = particles.filter(p=>p.life>0);
+            particles.forEach(p=>{
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life/30;
+                ctx.fillRect(p.x-2, p.y-2, 4, 4);
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        // === 屏幕震动 ===
+        function screenShake() {
+            shake = 10;
+            dieSound();
+        }
+
+        // === 绘制 ===
+        function draw() {
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+
+            // 震动偏移
+            let sx = 0, sy = 0;
+            if (shake > 0) {
+                sx = (Math.random()-0.5)*12;
+                sy = (Math.random()-0.5)*12;
+                shake--;
+            }
+            ctx.save();
+            ctx.translate(sx, sy);
+
+            // 蛇
+            snake.forEach((s,i)=>{
+                ctx.fillStyle = i===0 ? '#0f0' : '#0b0';
+                ctx.fillRect(s.x*grid, s.y*grid, grid-1, grid-1);
+            });
+
+            // 食物
+            ctx.fillStyle = '#f44';
+            ctx.fillRect(food.x*grid, food.y*grid, grid-1, grid-1);
+
+            // 障碍物
+            ctx.fillStyle = '#666';
+            obstacles.forEach(o=>{
+                ctx.fillRect(o.x*grid, o.y*grid, grid-1, grid-1);
+            });
+
+            // 粒子
+            drawParticles();
+
+            ctx.restore();
+        }
+
+        // === 移动 ===
+        function move() {
+            if (!running || paused) return;
+
+            dir = nextDir;
+            const head = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
+
+            // 撞墙 / 撞自己 / 撞障碍物
+            if (head.x <0 || head.x >=w || head.y <0 || head.y >=h ||
+                snake.some(s=>s.x===head.x&&s.y===head.y) ||
+                obstacles.some(o=>o.x===head.x&&o.y===head.y)) {
+                screenShake();
+                gameOver();
+                return;
+            }
+
+            snake.unshift(head);
+
+            // 吃食物
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                eatSound();
+                addParticles(food.x, food.y);
+                spawnFood();
+                updateLevel();
+            } else {
+                snake.pop();
+            }
+
+            draw();
+            updateUI();
+        }
+
+        // === 关卡 ===
+        function updateLevel() {
+            if (score < 10) {
+                level = 1;
+                baseSpeed = 180;
+                spawnObstacles(3);
+            } else if (score < 30) {
+                level = 2;
+                baseSpeed = 150;
+                spawnObstacles(6);
+            } else {
+                level = 3;
+                baseSpeed = 120;
+                spawnObstacles(10);
+            }
+            currentSpeed = boosting ? baseSpeed*0.5 : baseSpeed;
+            restartLoop();
+        }
+
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('level').textContent = level;
+            document.getElementById('speed').textContent = currentSpeed + 'ms';
+        }
+
+        function restartLoop() {
+            clearInterval(loop);
+            loop = setInterval(move, currentSpeed);
+        }
+
+        // === 游戏控制 ===
+        function start() {
+            running = true;
+            paused = false;
+            document.getElementById('start').disabled = true;
+            document.getElementById('pause').disabled = false;
+            restartLoop();
+        }
+
+        function togglePause() {
+            paused = !paused;
+            document.getElementById('pause').textContent = paused ? '继续' : '暂停';
+        }
+
+        function gameOver() {
+            clearInterval(loop);
+            running = false;
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+
+        function restart() {
+            snake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+            dir = {x:1,y:0};
+            nextDir = {x:1,y:0};
+            score = 0;
+            level = 1;
+            baseSpeed = 180;
+            currentSpeed = baseSpeed;
+            particles = [];
+            shake = 0;
+            spawnFood();
+            spawnObstacles(3);
+            document.getElementById('gameOver').style.display = 'none';
+            document.getElementById('start').disabled = false;
+            document.getElementById('pause').disabled = true;
+            draw();
+            updateUI();
+        }
+
+        // === 按键 ===
+        document.addEventListener('keydown', e=>{
+            if (!running) return;
+            switch(e.key) {
+                case 'ArrowUp':    if (dir.y!==1) nextDir={x:0,y:-1}; break;
+                case 'ArrowDown':  if (dir.y!==-1) nextDir={x:0,y:1}; break;
+                case 'ArrowLeft':  if (dir.x!==1) nextDir={x:-1,y:0}; break;
+                case 'ArrowRight': if (dir.x!==-1) nextDir={x:1,y:0}; break;
+                case ' ': // 空格加速
+                    boosting = true;
+                    currentSpeed = baseSpeed*0.5;
+                    restartLoop();
+                    break;
+            }
+        });
+
+        document.addEventListener('keyup', e=>{
+            if (e.key === ' ') {
+                boosting = false;
+                currentSpeed = baseSpeed;
+                restartLoop();
+            }
+        });
+
+        // === 初始化 ===
+        document.getElementById('start').onclick = start;
+        document.getElementById('pause').onclick = togglePause;
+        spawnFood();
+        spawnObstacles(3);
+        draw();
+        updateUI();
+    </script>
+</body>
+</html>

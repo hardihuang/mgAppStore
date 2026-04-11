@@ -1,0 +1,122 @@
+/* ══════════════════════════════════════════════════════════
+   SHARE CARD MODAL - 炫酷动画版本
+   ══════════════════════════════════════════════════════════ */
+.share-modal-box {
+    background: rgba(26,26,46,0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 24px;
+    border: 2px solid rgba(255,255,255,0.2);
+    padding: 2rem;
+    max-width: 700px;
+    width: 95%;
+    position: relative;
+}
+
+.share-title {
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 900;
+    margin-bottom: 1.5rem;
+    color: #fff;
+}
+
+.share-canvas-wrapper {
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#shareCanvas {
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    max-width: 100%;
+    height: auto;
+    animation: cardFadeIn 0.3s ease-out;
+}
+
+/* 简单淡入缩放动画 */
+@keyframes cardFadeIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* 闪光效果 */
+.share-flash-effect {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 70%);
+    transform: translate(-50%, -50%);
+    animation: flashPulse 1.5s ease-out;
+    pointer-events: none;
+}
+
+@keyframes flashPulse {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0);
+    }
+    50% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.5);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(3);
+    }
+}
+
+.share-actions {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.btn-share-download,
+.btn-share-copy {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-share-download {
+    background: linear-gradient(135deg, #4facfe, #00f2fe);
+    color: #fff;
+}
+
+.btn-share-download:hover {
+    transform: scale(1.05);
+    box-shadow: 0 5px 20px rgba(79,172,254,0.4);
+}
+
+.btn-share-copy {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.btn-share-copy:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.share-tip {
+    text-align: center;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.6);
+    font-weight: 600;
+}

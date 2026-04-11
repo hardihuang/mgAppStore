@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Undertale Sans Battle (Complete)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        body {
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #battle-container {
+            width: 800px;
+            height: 600px;
+            margin: 20px auto;
+            border: 3px solid #fff;
+            position: relative;
+            background: #000;
+        }
+
+        #enemy-area {
+            height: 200px;
+            padding: 20px;
+            border-bottom: 2px solid #fff;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        #enemy-img {
+            width: 120px;
+            height: 120px;
+            object-fit: contain;
+        }
+
+        #enemy-name {
+            font-size: 24px;
+            color: #ff0000;
+        }
+
+        #enemy-hp-bar {
+            width: 300px;
+            height: 20px;
+            background: #333;
+            border: 2px solid #fff;
+        }
+
+        #enemy-hp-fill {
+            height: 100%;
+            background: #ff0000;
+            width: 100%;
+            transition: width 0.3s;
+        }
+
+        #battle-field {
+            height: 250px;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+        }
+
+        #player-soul {
+            width: 40px;
+            height: 40px;
+            background: url('https://ts2.tc.mm.bing.net/th/id/OIP-C.6wMMCBjPOkC1urGmETBCIQAAAA?rs=1&pid=ImgDetMain&o=7&rm=3') center/cover no-repeat;
+            position: absolute;
+            bottom: 20px;
+            left: 380px;
+            z-index: 10;
+            transition: transform 0.05s ease-out;
+        }
+
+        #player-soul.blue-soul {
+            filter: sepia(0) saturate(200%) hue-rotate(180deg) brightness(1.2);
+        }
+
+        /* Regular Bones */
+        .bullet {
+            position: absolute;
+            width: 40px;
+            height: 20px;
+            background: url('https://tse2-mm.cn.bing.net/th/id/OIP-C.upMIdPuXUWy_4BqEKDiM7AHaHa?w=179&h=180&c=7&r=0&o=7&dpr=2&pid=1.7&rm=3') center/cover no-repeat;
+            z-index: 5;
+        }
+
+        /* Bone Wave (Sans Classic) */
+        .bone-wave {
+            position: absolute;
+            width: 40px;
+            height: 20px;
+            background: url('https://tse2-mm.cn.bing.net/th/id/OIP-C.upMIdPuXUWy_4BqEKDiM7AHaHa?w=179&h=180&c=7&r=0&o=7&dpr=2&pid=1.7&rm=3') center/cover no-repeat;
+            z-index: 5;
+        }
+
+        /* WARNING MARKERS (red outline + !) */
+        .spike-warning {
+            position: absolute;
+            width: 34px;
+            height: 34px;
+            border: 3px solid #ff0000;
+            background: transparent;
+            border-radius: 4px;
+            z-index: 6;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ff0000;
+            font-size: 20px;
+            animation: pulse 0.6s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { opacity: 0.7; }
+            to { opacity: 1; }
+        }
+
+        .spike {
+            position: absolute;
+            width: 30px;
+            height: 20px;
+            background: url('https://tse2-mm.cn.bing.net/th/id/OIP-C.upMIdPuXUWy_4BqEKDiM7AHaHa?w=179&h=180&c=7&r=0&o=7&dpr=2&pid=1.7&rm=3') center/cover no-repeat;
+            filter: hue-rotate(180deg);
+            bottom: 0;
+            z-index: 5;
+        }
+
+        #ui-area {
+            height: 150px;
+            padding: 20px;
+            border-top: 2px solid #fff;
+        }
+
+        #turn-indicator {
+            font-size: 14px;
+            color: #ffff00;
+        }
+
+        #timer-display {
+            font-size: 12px;
+            color: #0ff;
+        }
+
+        #turn-counter {
+            font-size: 12px;
+            color: #00ff41;
+            margin-top: 5px;
+        }
+
+        #action-buttons {
+            display: flex;
+            gap: 20px;
+            margin: 10px 0;
+        }
+
+        .action-btn {
+            padding: 10px 20px;
+            background: #000;
+            border: 2px solid #fff;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+        }
+
+        #text-box {
+            width: 100%;
+            height: 60px;
+            border: 2px solid #fff;
+            padding: 10px;
+            font-size: 14px;
+        }
+
+        #player-hp {
+            position: absolute;
+            bottom: 10px;
+            right: 20px;
+            font-size: 14px;
+        }
+
+        #game-over {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            font-size: 32px;
+            gap: 20px;
+        }
+
+        #restart-btn {
+            padding: 15px 30px;
+            background: #f00;
+            border: 2px solid #fff;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        /* Audio controls (hidden but functional) */
+        #audio-container {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 99;
+            opacity: 0.2;
+            transition: opacity 0.3s;
+        }
+
+        #audio-container:hover {
+            opacity: 1;
+        }
+
+        audio {
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+<div id="battle-container">
+    <!-- Audio Container (hidden by default, hover to show) -->
+    <div id="audio-container">
+        <audio id="bg-music" loop autoplay>
+            <source src="https://cdn.discordapp.com/attachments/785623456789012345/1234567890123456789/Asgore_Battle_Theme.mp3" type="audio/mpeg">
+            <!-- Fallback: Direct Undertale Asgore theme URL -->
+            <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
+        <audio id="hit-sound">
+            <source src="https://cdn.discordapp.com/attachments/785623456789012345/1234567890123456789/hit_sound.wav" type="audio/wav">
+            <!-- Fallback hit sound -->
+            <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
+    </div>
+
+    <div id="enemy-area">
+        <img id="enemy-img" src="https://ts2.tc.mm.bing.net/th/id/OIP-C.GNRox9rI5Q5kGTD-ua80twAAAA?rs=1&pid=ImgDetMain&o=7&rm=3">
+        <div>
+            <div id="enemy-name">Sans</div>
+            <div id="enemy-hp">HP: <span id="enemy-hp-value">100</span>/100</div>
+            <div id="enemy-hp-bar"><div id="enemy-hp-fill"></div></div>
+        </div>
+    </div>
+
+    <div id="battle-field">
+        <div id="player-soul"></div>
+    </div>
+
+    <div id="ui-area">
+        <div id="turn-indicator">ENEMY TURN (RED SOUL)</div>
+        <div id="timer-display">Enemy Turn Time: 30s</div>
+        <div id="turn-counter">Current Turn: 1</div>
+        <div id="action-buttons">
+            <button class="action-btn" id="fight-btn" disabled>FIGHT</button>
+            <button class="action-btn" id="act-btn" disabled>ACT</button>
+            <button class="action-btn" id="item-btn" disabled>ITEM</button>
+            <button class="action-btn" id="mercy-btn" disabled>MERCY</button>
+        </div>
+        <div id="text-box">Heh. You really thought you could win?</div>
+    </div>
+
+    <div id="player-hp">YOUR HP: <span id="player-hp-value">30</span>/40</div>
+
+    <div id="game-over">
+        <div>GAME OVER</div>
+        <button id="restart-btn">RESTART</button>
+    </div>
+</div>
+
+<script>
+    // Audio Elements
+    const bgMusic = document.getElementById('bg-music');
+    const hitSound = document.getElementById('hit-sound');
+    
+    // Set audio volumes (adjust as needed)
+    bgMusic.volume = 0.3; // 30% volume for background music
+    hitSound.volume = 0.7; // 70% volume for hit sound
+
+    const playerSoul = document.getElementById('player-soul');
+    const battleField = document.getElementById('battle-field');
+    const enemyHpFill = document.getElementById('enemy-hp-fill');
+    const enemyHpValue = document.getElementById('enemy-hp-value');
+    const playerHpValue = document.getElementById('player-hp-value');
+    const textBox = document.getElementById('text-box');
+    const turnIndicator = document.getElementById('turn-indicator');
+    const timerDisplay = document.getElementById('timer-display');
+    const turnCounter = document.getElementById('turn-counter');
+    const actionButtons = document.querySelectorAll('.action-btn');
+    const gameOverScreen = document.getElementById('game-over');
+    const restartBtn = document.getElementById('restart-btn');
+
+    let gameState = {
+        playerHP: 30,          // Increased: 15 → 30
+        playerMaxHP: 40,       // New: Player HP cap (15→40)
+        enemyHP: 100,          // Increased: 30 → 100
+        enemyMaxHP: 100,       // New: Enemy max HP
+        soulX: 380, 
+        soulY: 190,
+        soulSpeed: 8, 
+        bullets: [], 
+        boneWaves: [], 
+        warnings: [], 
+        spikes: [],
+        bulletSpeed: 7, 
+        boneWaveSpeed: 3, 
+        isEnemyTurn: true, 
+        isGameOver: false,
+        isBlueSoul: false,
+        velocityY: 0, 
+        jumpPower: 14, 
+        gravity: 0.9,
+        onGround: true,
+        animationFrame: null,
+        spawnInterval: null, 
+        timerInterval: null,
+        enemyTurnTimer: 30,
+        currentTurnType: 'red', 
+        currentRedAttack: 'falling',
+        turnCount: 1           // New: Track battle turns
+    };
+
+    // Update HP bar on init
+    enemyHpFill.style.width = `${(gameState.enemyHP / gameState.enemyMaxHP) * 100}%`;
+
+    // ——— TIMER ———
+    function startTurnTimer() {
+        gameState.enemyTurnTimer = 30;
+        timerDisplay.textContent = `Enemy Turn Time: 30s`;
+        gameState.timerInterval = setInterval(() => {
+            if (!gameState.isEnemyTurn || gameState.isGameOver) {
+                clearInterval(gameState.timerInterval); 
+                return;
+            }
+            gameState.enemyTurnTimer--;
+            timerDisplay.textContent = `Enemy Turn Time: ${gameState.enemyTurnTimer}s`;
+            if (gameState.enemyTurnTimer <= 0) {
+                clearInterval(gameState.timerInterval);
+                switchToPlayerTurn();
+            }
+        }, 1000);
+    }
+
+    // ——— TURN TYPE SELECTION (RED/BLUE) ———
+    function selectNextTurnType() {
+        gameState.currentTurnType = gameState.currentTurnType === 'red' ? 'blue' : 'red';
+    }
+
+    // ——— SELECT RED SOUL ATTACK TYPE (INCLUDING BONE WAVE) ———
+    function selectRedAttackType() {
+        const attacks = ['falling', 'horizontal', 'boneWave'];
+        gameState.currentRedAttack = attacks[Math.floor(Math.random() * attacks.length)];
+        
+        switch(gameState.currentRedAttack) {
+            case 'falling':
+                textBox.textContent = "Sans throws bones from above! Move fast!";
+                break;
+            case 'horizontal':
+                textBox.textContent = "Sans shoots bones sideways! Dodge quick!";
+                break;
+            case 'boneWave':
+                textBox.textContent = "Sans unleashes a bone wave! RUN!";
+                break;
+        }
+    }
+
+    // ——— BLUE SOUL MODE ———
+    function enableBlueSoul() {
+        gameState.isBlueSoul = true;
+        playerSoul.classList.add('blue-soul');
+        turnIndicator.textContent = `ENEMY TURN (BLUE SOUL)`;
+        textBox.textContent = "Blue soul activated! WASD + SPACE to jump!";
+        
+        setTimeout(showSpikeWarnings, 800);
+        setTimeout(spawnSpikes, 2000);
+    }
+
+    function disableBlueSoul() {
+        gameState.isBlueSoul = false;
+        playerSoul.classList.remove('blue-soul');
+        gameState.velocityY = 0;
+        gameState.onGround = true;
+        turnIndicator.textContent = `ENEMY TURN (RED SOUL)`;
+    }
+
+    // ——— WARNING MARKERS ———
+    function showSpikeWarnings() {
+        clearOldWarnings();
+        const fieldW = battleField.offsetWidth;
+        const count = Math.floor(Math.random() * 5) + 7;
+
+        for (let i = 0; i < count; i++) {
+            if (Math.random() < 0.3) continue;
+            const x = (i / count) * fieldW + Math.random() * 20;
+            const warn = document.createElement('div');
+            warn.className = 'spike-warning';
+            warn.textContent = '!';
+            warn.style.left = `${x}px`;
+            warn.style.bottom = '0px';
+            battleField.appendChild(warn);
+            gameState.warnings.push({ el: warn, x });
+        }
+    }
+
+    // ——— BLUE SOUL SPIKES ———
+    function spawnSpikes() {
+        clearOldSpikes();
+        gameState.warnings.forEach(w => {
+            const spike = document.createElement('div');
+            spike.className = 'spike';
+            spike.style.left = `${w.x}px`;
+            spike.style.bottom = '0px';
+            battleField.appendChild(spike);
+            gameState.spikes.push({ el: spike, x: w.x, y: battleField.offsetHeight - 20 });
+        });
+        clearOldWarnings();
+    }
+
+    function clearOldWarnings() {
+        gameState.warnings.forEach(w => w.el.remove());
+        gameState.warnings = [];
+    }
+
+    function clearOldSpikes() {
+        gameState.spikes.forEach(s => s.el.remove());
+        gameState.spikes = [];
+    }
+
+    // ——— WASD + ARROW KEY CONTROLS (FULL SUPPORT) ———
+    const keys = {};
+    document.addEventListener('keydown', e => { 
+        keys[e.code] = true; 
+        if (e.code === 'Space') e.preventDefault();
+    });
+    document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+    function updateSoul() {
+        if (gameState.isGameOver) return;
+        const w = battleField.offsetWidth;
+        const h = battleField.offsetHeight;
+        const size = 40;
+
+        // Left (A / ArrowLeft)
+        if (keys['KeyA'] || keys['ArrowLeft'])
+            gameState.soulX = Math.max(0, gameState.soulX - gameState.soulSpeed);
+        // Right (D / ArrowRight)
+        if (keys['KeyD'] || keys['ArrowRight'])
+            gameState.soulX = Math.min(w - size, gameState.soulX + gameState.soulSpeed);
+
+        // BLUE SOUL: Jump (W / Space / ArrowUp) + Gravity
+        if (gameState.isBlueSoul) {
+            if ((keys['KeyW'] || keys['Space'] || keys['ArrowUp']) && gameState.onGround) {
+                gameState.velocityY = -gameState.jumpPower;
+                gameState.onGround = false;
+            }
+            gameState.velocityY += gameState.gravity;
+            gameState.soulY += gameState.velocityY;
+
+            if (gameState.soulY >= h - size) {
+                gameState.soulY = h - size;
+                gameState.velocityY = 0;
+                gameState.onGround = true;
+            }
+        } 
+        // RED SOUL: Up/Down (W/S / ArrowUp/ArrowDown)
+        else {
+            if (keys['KeyW'] || keys['ArrowUp']) 
+                gameState.soulY = Math.max(0, gameState.soulY - gameState.soulSpeed);
+            if (keys['KeyS'] || keys['ArrowDown']) 
+                gameState.soulY = Math.min(h - size, gameState.soulY + gameState.soulSpeed);
+        }
+
+        playerSoul.style.left = `${gameState.soulX}px`;
+        playerSoul.style.top = `${gameState.soulY}px`;
+    }
+
+    // ——— RED SOUL ATTACKS (FASTER + SINGLE-SIDE BONE WAVE) ———
+    function spawnFallingBullet() {
+        const b = document.createElement('div');
+        b.className = 'bullet';
+        const x = Math.random() * (battleField.offsetWidth - 40);
+        b.style.left = `${x}px`;
+        b.style.top = '0px';
+        battleField.appendChild(b);
+        gameState.bullets.push({ el: b, x, y: 0, type: 'fall' });
+    }
+
+    function spawnHorizontalBullet() {
+        const b = document.createElement('div');
+        b.className = 'bullet';
+        const y = Math.random() * (battleField.offsetHeight - 20);
+        const dir = Math.random() > 0.5 ? 1 : -1;
+        const x = dir === 1 ? 0 : battleField.offsetWidth - 40;
+        b.style.left = `${x}px`;
+        b.style.top = `${y}px`;
+        battleField.appendChild(b);
+        gameState.bullets.push({ el: b, x, y, type: 'hori', dir });
+    }
+
+    function spawnBoneWave() {
+        clearOldBoneWaves();
+        const fieldH = battleField.offsetHeight;
+        const waveCount = 8;
+        const spacing = fieldH / waveCount;
+
+        const waveSide = Math.random() > 0.5 ? 0 : battleField.offsetWidth - 40;
+
+        for (let i = 0; i < waveCount; i++) {
+            const b = document.createElement('div');
+            b.className = 'bone-wave';
+            const spawnX = waveSide;
+            const spawnY = i * spacing;
+            
+            b.style.left = `${spawnX}px`;
+            b.style.top = `${spawnY}px`;
+            battleField.appendChild(b);
+
+            gameState.boneWaves.push({
+                el: b,
+                x: spawnX,
+                y: spawnY,
+                targetX: gameState.soulX,
+                targetY: gameState.soulY
+            });
+        }
+    }
+
+    function clearOldBoneWaves() {
+        gameState.boneWaves.forEach(b => b.el.remove());
+        gameState.boneWaves = [];
+    }
+
+    // ——— SPAWN RED SOUL ATTACKS ———
+    function spawnRedSoulAttacks() {
+        selectRedAttackType();
+        switch(gameState.currentRedAttack) {
+            case 'falling':
+                spawnFallingBullet();
+                break;
+            case 'horizontal':
+                spawnHorizontalBullet();
+                break;
+            case 'boneWave':
+                spawnBoneWave();
+                break;
+        }
+    }
+
+    // ——— BLUE SOUL ATTACKS ———
+    function spawnBlueSoulAttacks() {
+        enableBlueSoul();
+    }
+
+    // ——— UPDATE ATTACKS ———
+    function updateAttacks() {
+        if (gameState.currentTurnType === 'red') {
+            gameState.spikes.forEach(s => s.el.remove());
+            gameState.spikes = [];
+
+            gameState.bullets = gameState.bullets.filter(b => {
+                if (b.type === 'fall') b.y += gameState.bulletSpeed;
+                if (b.type === 'hori') b.x += gameState.bulletSpeed * b.dir;
+
+                b.el.style.left = `${b.x}px`;
+                b.el.style.top = `${b.y}px`;
+
+                if (b.y > battleField.offsetHeight || b.x < -50 || b.x > battleField.offsetWidth + 50) {
+                    b.el.remove(); 
+                    return false;
+                }
+
+                if (hit(b, 40, 20)) { 
+                    hurt(3); 
+                    b.el.remove(); 
+                    return false; 
+                }
+                return true;
+            });
+
+            gameState.boneWaves = gameState.boneWaves.filter(b => {
+                b.targetX = gameState.soulX;
+                b.targetY = gameState.soulY;
+
+                const dx = b.targetX - b.x;
+                const dy = b.targetY - b.y;
+                const distance = Math.sqrt(dx*dx + dy*dy);
+
+                if (distance > 10) {
+                    b.x += (dx / distance) * gameState.boneWaveSpeed;
+                    b.y += (dy / distance) * gameState.boneWaveSpeed;
+                }
+
+                b.el.style.left = `${b.x}px`;
+                b.el.style.top = `${b.y}px`;
+
+                if (b.x < -50 || b.x > battleField.offsetWidth + 50 || b.y < -50 || b.y > battleField.offsetHeight + 50) {
+                    b.el.remove(); 
+                    return false; 
+                }
+
+                if (hit(b, 40, 20)) { 
+                    hurt(4); 
+                    b.el.remove(); 
+                    return false; 
+                }
+                return true;
+            });
+        } 
+        else if (gameState.currentTurnType === 'blue') {
+            gameState.bullets.forEach(b => b.el.remove());
+            gameState.bullets = [];
+            clearOldBoneWaves();
+
+            gameState.spikes.forEach(s => {
+                if (hit(s, 30, 20)) hurt(3);
+            });
+        }
+    }
+
+    // ——— COLLISION DETECTION ———
+    function hit(obj, w, h) {
+        const s = gameState;
+        return obj.x < s.soulX + 40 && obj.x + w > s.soulX &&
+               obj.y < s.soulY + 40 && obj.y + h > s.soulY;
+    }
+
+    function hurt(dmg) {
+        // Play hit sound (reset and play to avoid overlap)
+        hitSound.currentTime = 0;
+        hitSound.play().catch(err => console.log("Hit sound play error:", err));
+        
+        gameState.playerHP = Math.max(0, gameState.playerHP - dmg);
+        playerHpValue.textContent = gameState.playerHP;
+        textBox.textContent = `OUCH! Took ${dmg} damage!`;
+        if (gameState.playerHP <= 0) endGame(false);
+    }
+
+    // ——— TURN SWITCH ———
+    function switchToEnemyTurn() {
+        // Increment turn count and update display
+        gameState.turnCount++;
+        turnCounter.textContent = `Current Turn: ${gameState.turnCount}`;
+        
+        selectNextTurnType();
+        gameState.isEnemyTurn = true;
+        actionButtons.forEach(btn => btn.disabled = true);
+        
+        disableBlueSoul();
+        clearOldWarnings(); 
+        clearOldSpikes();
+        gameState.bullets.forEach(b => b.el.remove());
+        gameState.bullets = [];
+        clearOldBoneWaves();
+
+        startTurnTimer();
+        if (gameState.currentTurnType === 'red') {
+            turnIndicator.textContent = `ENEMY TURN (RED SOUL)`;
+            selectRedAttackType();
+            gameState.spawnInterval = setInterval(spawnRedSoulAttacks, 800);
+        } else {
+            turnIndicator.textContent = `ENEMY TURN (BLUE SOUL)`;
+            textBox.textContent = "Blue soul mode incoming...";
+            gameState.spawnInterval = setInterval(spawnBlueSoulAttacks, 3000);
+        }
+    }
+
+    function switchToPlayerTurn() {
+        gameState.isEnemyTurn = false;
+        clearInterval(gameState.spawnInterval);
+        clearInterval(gameState.timerInterval);
+        
+        disableBlueSoul();
+        clearOldWarnings(); 
+        clearOldSpikes();
+        gameState.bullets.forEach(b => b.el.remove());
+        gameState.bullets = [];
+        clearOldBoneWaves();
+
+        turnIndicator.textContent = "YOUR TURN!";
+        textBox.textContent = `Turn ${gameState.turnCount}: Choose an action! (${gameState.turnCount < 20 ? "100% miss chance" : "50% miss chance"})`;
+        actionButtons.forEach(btn => btn.disabled = false);
+    }
+
+    // ——— MISS MECHANIC ———
+    function checkHitSuccess() {
+        // 100% miss until turn 20
+        if (gameState.turnCount < 20) return false;
+        // 50% miss after turn 20
+        return Math.random() > 0.5;
+    }
+
+    // ——— GAME LOOP ———
+    function loop() {
+        updateSoul();
+        updateAttacks();
+        gameState.animationFrame = requestAnimationFrame(loop);
+    }
+
+    function endGame(vic) {
+        gameState.isGameOver = true;
+        cancelAnimationFrame(gameState.animationFrame);
+        clearInterval(gameState.spawnInterval);
+        clearInterval(gameState.timerInterval);
+        
+        // Fade out music on game over
+        if (vic) {
+            bgMusic.volume = 0.1; // Lower volume on victory
+        } else {
+            bgMusic.pause(); // Pause music on game over
+        }
+        
+        gameOverScreen.style.display = 'flex';
+        gameOverScreen.querySelector('div').textContent = vic ? "VICTORY!" : "GAME OVER";
+        textBox.textContent = vic ? "You beat Sans! Congrats!" : "You lost... Try again!";
+    }
+
+    // ——— BUTTONS (FIXED MULTI-CLICK BUG + MISS MECHANIC) ———
+    document.getElementById('fight-btn').onclick = () => {
+        if (gameState.isEnemyTurn) return;
+        
+        // FIX: Disable all buttons immediately to prevent multi-click
+        actionButtons.forEach(btn => btn.disabled = true);
+
+        const hitSuccess = checkHitSuccess();
+        const dmg = Math.floor(Math.random() * 8) + 6; // Increased damage (4-9 → 6-13)
+
+        if (hitSuccess) {
+            // Successful hit
+            gameState.enemyHP = Math.max(0, gameState.enemyHP - dmg);
+            enemyHpValue.textContent = gameState.enemyHP;
+            enemyHpFill.style.width = `${(gameState.enemyHP / gameState.enemyMaxHP) * 100}%`;
+            textBox.textContent = `You hit Sans for ${dmg} damage! (Turn ${gameState.turnCount})`;
+            
+            if (gameState.enemyHP <= 0) {
+                endGame(true);
+                return;
+            }
+        } else {
+            // Miss
+            textBox.textContent = `You missed! ${gameState.turnCount < 20 ? "Too early to hit Sans!" : "Sans dodged your attack!"} (Turn ${gameState.turnCount})`;
+        }
+
+        // Switch to enemy turn after delay
+        setTimeout(switchToEnemyTurn, 1500);
+    };
+
+    document.getElementById('item-btn').onclick = () => {
+        if (gameState.isEnemyTurn) return;
+        
+        // FIX: Disable all buttons immediately
+        actionButtons.forEach(btn => btn.disabled = true);
+
+        // Increased healing (7 → 10)
+        const healAmount = 10;
+        gameState.playerHP = Math.min(gameState.playerMaxHP, gameState.playerHP + healAmount);
+        playerHpValue.textContent = gameState.playerHP;
+        textBox.textContent = `You used a pie! HP +${healAmount} (${gameState.playerHP}/${gameState.playerMaxHP})`;
+        
+        setTimeout(switchToEnemyTurn, 1500);
+    };
+
+    document.getElementById('act-btn').onclick = () => {
+        if (gameState.isEnemyTurn) return;
+        
+        // FIX: Disable all buttons immediately
+        actionButtons.forEach(btn => btn.disabled = true);
+
+        textBox.textContent = `Turn ${gameState.turnCount}: You taunt Sans... He laughs.`;
+        setTimeout(switchToEnemyTurn, 1500);
+    };
+
+    document.getElementById('mercy-btn').onclick = () => {
+        if (gameState.isEnemyTurn) return;
+        
+        // FIX: Disable all buttons immediately
+        actionButtons.forEach(btn => btn.disabled = true);
+
+        textBox.textContent = `Turn ${gameState.turnCount}: Sans: 'Mercy? Nice try.'`;
+        setTimeout(switchToEnemyTurn, 1500);
+    };
+
+    restartBtn.onclick = () => {
+        // Reset music on restart
+        bgMusic.volume = 0.3;
+        bgMusic.play();
+        location.reload();
+    };
+
+    // Start Game
+    gameState.currentTurnType = 'red';
+    selectRedAttackType();
+    startTurnTimer();
+    gameState.spawnInterval = setInterval(spawnRedSoulAttacks, 800);
+    loop();
+
+    // Fix for autoplay audio (browser policy workaround)
+    document.addEventListener('click', () => {
+        if (bgMusic.paused) {
+            bgMusic.play().catch(err => console.log("Music play error (browser policy):", err));
+        }
+    }, { once: true });
+</script>
+</body>
+</html>

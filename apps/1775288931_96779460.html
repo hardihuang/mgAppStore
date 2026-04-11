@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>射击模拟器</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{
+            background:#1a1a1a;display:flex;justify-content:center;
+            align-items:center;min-height:100vh;font-family:Microsoft YaHei
+        }
+        canvas{
+            background:#222;border:2px solid #555;
+            border-radius:4px;background:#111
+        }
+    </style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+// ==================== 基础配置 ====================
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+canvas.width = 800;
+canvas.height = 600;
+
+// 游戏状态
+const game = {
+    stage: 1,
+    score: 0,
+    status: 'start', // start playing gameover
+    hitEffect: 0, // 击杀绿屏效果
+    keys: { ArrowUp:false, ArrowDown:false, ArrowLeft:false, ArrowRight:false },
+    mouse: { x:0, y:0, shooting:false }
+};
+
+// 玩家（超大生命值）
+const player = {
+    x: canvas.width/2, y: canvas.height/2,
+    w: 20, h: 20, speed: 5,
+    color: '#00ffff', alive: true,
+    hp: 1000000000000000000000,
+    maxHp: 1000000000000000000000
+};
+
+// 数组管理
+const bullets = [];   // 跟踪子弹
+const enemies = [];  // 敌人
+const mines = [];    // 玩家地雷
+
+// ==================== 工具函数 ====================
+function random(min,max){ return Math.random()*(max-min)+min }
+function distance(a,b){ return Math.hypot(a.x-b.x,a.y-b.y) }
+
+// ==================== 重置游戏函数 ====================
+function resetGame(){
+    game.stage = 1;
+    game.score = 0;
+    game.status = 'playing';
+    player.x = canvas.width/2;
+    player.y = canvas.height/2;
+    player.alive = true;
+    player.hp = 1000000000000000000000;
+    bullets.length = 0;
+    mines.length = 0;
+    spawnLevel();
+}
+
+// ==================== 生成敌人 ====================
+function spawnLevel(){
+    enemies.length = 0;
+    
+    // 敌人数量随关卡增加
+    const enemyCount = Math.min(3 + game.stage, 10);
+
+    // 生成敌人
+    for(let i=0;i<enemyCount;i++){
+        enemies.push({
+            x: random(50,canvas.width-50),
+            y: random(50,canvas.height-50),
+            size: 18, speed: 0.7 + game.stage*0.05,
+            color: '#ff4444'
+        });
+    }
+}
+
+// ==================== 发射跟踪子弹 ====================
+function shootBullet(){
+    if(!player.alive || game.status!=='playing') return;
+    // 寻找最近的敌人
+    let target = null;
+    let minDist = 9999;
+    enemies.forEach(e=>{
+        const d = distance(player,e);
+        if(d < minDist){ minDist = d; target = e }
+    });
+    if(!target) return;
+    // 创建跟踪子弹
+    bullets.push({
+        x: player.x, y: player.y,
+        size: 6, speed: 8, target
+    });
+}
+
+// ==================== 放置地雷（空格） ====================
+function placeMine(){
+    if(!player.alive || game.status!=='playing') return;
+    mines.push({
+        x: player.x, y: player.y,
+        size: 12, time: 0, maxTime: 60
+    });
+}
+
+// ==================== 游戏更新 ====================
+function update(){
+    if(game.status !== 'playing' || !player.alive) return;
+
+    // 玩家移动
+    if(game.keys.ArrowUp && player.y>30) player.y -= player.speed;
+    if(game.keys.ArrowDown && player.y<canvas.height-30) player.y += player.speed;
+    if(game.keys.ArrowLeft && player.x>30) player.x -= player.speed;
+    if(game.keys.ArrowRight && player.x<canvas.width-30) player.x += player.speed;
+
+    // 敌人追踪玩家
+    enemies.forEach(e=>{
+        const dx = player.x - e.x;
+        const dy = player.y - e.y;
+        const d = Math.hypot(dx,dy);
+        if(d>0){ e.x += dx/d*e.speed; e.y += dy/d*e.speed }
+    });
+
+    // 跟踪子弹逻辑
+    for(let i=bullets.length-1;i>=0;i--){
+        const b = bullets[i];
+        if(!b.target || !enemies.includes(b.target)){ bullets.splice(i,1); continue }
+        // 跟踪目标
+        const dx = b.target.x - b.x;
+        const dy = b.target.y - b.y;
+        const d = Math.hypot(dx,dy);
+        if(d>0){ b.x += dx/d*b.speed; b.y += dy/d*b.speed }
+        // 子弹命中敌人
+        if(d < b.size + b.target.size){
+            game.score += 100; // +100分
+            game.hitEffect = 1; // 绿屏效果
+            enemies.splice(enemies.indexOf(b.target),1);
+            bullets.splice(i,1);
+        }
+    }
+
+    // 地雷逻辑
+    for(let i=mines.length-1;i>=0;i--){
+        const m = mines[i];
+        m.time++;
+        // 地雷爆炸
+        if(m.time >= m.maxTime){
+            enemies.forEach((e,j)=>{
+                if(distance(e,m) < 60){
+                    enemies.splice(j,1);
+                    game.score += 100;
+                    game.hitEffect = 1;
+                }
+            });
+            mines.splice(i,1);
+        }
+    }
+
+    // 碰撞扣血（碰到一下-1血，不再直接死）
+    enemies.forEach(e=>{
+        if(distance(player,e)<28){
+            player.hp -= 1;
+            // 血量为0才死亡
+            if(player.hp <= 0){
+                player.alive = false;
+                game.status = 'gameover';
+            }
+        }
+    });
+
+    // 通关：敌人清完进下一关
+    if(enemies.length === 0){
+        game.stage++;
+        spawnLevel();
+    }
+
+    // 效果衰减
+    if(game.hitEffect>0) game.hitEffect -= 0.05;
+}
+
+// ==================== 绘制 ====================
+function render(){
+    // 清空画面
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // 击杀绿屏效果
+    if(game.hitEffect > 0){
+        ctx.fillStyle = `rgba(0,255,80,${game.hitEffect*0.15})`;
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+    }
+
+    // 绘制地雷
+    mines.forEach(m=>{
+        ctx.fillStyle = m.time>m.maxTime-20 ? '#ff0000' : '#888';
+        ctx.beginPath(); ctx.arc(m.x,m.y,m.size,0,Math.PI*2); ctx.fill();
+    });
+
+    // 绘制敌人
+    enemies.forEach(e=>{
+        ctx.fillStyle = e.color;
+        ctx.beginPath(); ctx.arc(e.x,e.y,e.size,0,Math.PI*2); ctx.fill();
+    });
+
+    // 绘制子弹
+    bullets.forEach(b=>{
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(b.x,b.y,b.size,0,Math.PI*2); ctx.fill();
+    });
+
+    // 绘制玩家
+    if(player.alive){
+        ctx.fillStyle = player.color;
+        ctx.fillRect(player.x-player.w/2,player.y-player.h/2,player.w,player.h);
+    }
+
+    // ==================== UI ====================
+    ctx.fillStyle = '#fff'; ctx.font = '22px Microsoft YaHei';
+    ctx.fillText(`关卡：${game.stage}`, 15, 30); // 左上角关卡
+    ctx.fillText(`积分：${game.score}`, canvas.width-120, 30); // 右上角积分
+    ctx.fillText(`生命：${player.hp}`, 300, 30); // 顶部中间生命值
+    ctx.fillText(`R = 重新开始`, 680, 580); // 右下角提示
+
+    // 开始界面
+    if(game.status === 'start'){
+        ctx.fillStyle = '#fff'; ctx.font = '46px Microsoft YaHei'; ctx.textAlign='center';
+        ctx.fillText('射击模拟器', canvas.width/2, 220);
+        ctx.font = '24px';
+        ctx.fillText('方向键移动 | 左键射击 | 空格放地雷 | R重开', canvas.width/2, 280);
+        ctx.fillText('点击屏幕开始', canvas.width/2, 330);
+        ctx.textAlign='left';
+    }
+
+    // 结束界面
+    if(game.status === 'gameover'){
+        ctx.fillStyle = '#ff4444'; ctx.font = '50px Microsoft YaHei'; ctx.textAlign='center';
+        ctx.fillText('游戏结束', canvas.width/2, 230);
+        ctx.fillStyle = '#fff'; ctx.font = '26px';
+        ctx.fillText(`最终关卡：${game.stage}`, canvas.width/2, 290);
+        ctx.fillText(`最终积分：${game.score}`, canvas.width/2, 330);
+        ctx.fillText('点击 或 按R重新开始', canvas.width/2, 380);
+        ctx.textAlign='left';
+    }
+}
+
+// ==================== 控制 ====================
+// 键盘
+document.addEventListener('keydown',e=>{
+    if(game.keys[e.key]!==undefined) game.keys[e.key]=true;
+    if(e.code==='Space') placeMine(); // 空格放地雷
+    if(e.key === 'r' || e.key === 'R') resetGame(); // R键重新开始
+});
+document.addEventListener('keyup',e=>{
+    if(game.keys[e.key]!==undefined) game.keys[e.key]=false;
+});
+
+// 鼠标
+canvas.addEventListener('mousedown',()=>{ game.mouse.shooting=true; shootBullet() });
+
+// 点击开始/重开
+canvas.addEventListener('click',()=>{
+    if(game.status==='start'){
+        game.status='playing';
+        spawnLevel();
+    }
+    if(game.status==='gameover'){
+        resetGame();
+    }
+});
+
+// 主循环
+function loop(){ update(); render(); requestAnimationFrame(loop) }
+loop();
+</script>
+</body>
+</html>

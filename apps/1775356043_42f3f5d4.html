@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>迷宫逃脱 - Maze Escape</title>
+    <style>
+        :root {
+            --bg-color: #020617;
+            --panel-color: #1e293b;
+            --text-color: #f8fafc;
+            --accent-color: #38bdf8;
+            --danger-color: #ef4444;
+            --success-color: #fbbf24;
+            --dash-color: #10b981;
+            --power-color: #fde047;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            touch-action: none;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            overflow: hidden;
+            padding-top: 10px;
+        }
+
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 100vw;
+        }
+
+        /* 顶部状态栏 */
+        #ui-layer {
+            width: 95%;
+            background: var(--panel-color);
+            padding: 8px 15px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            border: 1px solid #334155;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        .info-item { display: flex; flex-direction: column; align-items: center; }
+        .info-label { font-size: 0.6rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 2px; }
+
+        #canvas-wrapper {
+            position: relative;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #334155;
+        }
+
+        canvas { display: block; image-rendering: pixelated; }
+
+        /* Landing Page & Overlay System */
+        #overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.98);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            text-align: center;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .hidden { display: none !important; }
+
+        h1 { font-size: 2.4rem; color: var(--accent-color); margin-bottom: 5px; letter-spacing: 4px; text-shadow: 0 0 15px rgba(56, 189, 248, 0.5); }
+        .author-tag { font-size: 0.9rem; color: #64748b; margin-bottom: 20px; font-style: italic; }
+
+        .story-section { max-width: 420px; color: #cbd5e1; font-size: 0.9rem; line-height: 1.6; margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 15px; }
+
+        .instruction-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            max-width: 420px;
+            text-align: left;
+            margin-bottom: 25px;
+            font-size: 0.85rem;
+        }
+        .instruction-item b { color: var(--accent-color); }
+        .instruction-item i { color: var(--success-color); font-style: normal; }
+
+        button {
+            background: var(--accent-color);
+            color: #020617;
+            border: none;
+            padding: 12px 45px;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #0284c7;
+            transition: all 0.1s;
+        }
+        button:hover { background: #7dd3fc; transform: translateY(-1px); }
+        button:active { transform: translateY(2px); box-shadow: 0 2px 0 #0284c7; }
+
+        #energy-bar-container { width: 70px; height: 8px; background: #0f172a; border-radius: 4px; overflow: hidden; margin-top: 3px; border: 1px solid #334155; }
+        #energy-bar { width: 100%; height: 100%; background: var(--dash-color); transition: width 0.1s linear; }
+
+        #fog-layer { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 10; }
+        #mobile-joy { margin-top: 15px; display: none; justify-content: center; gap: 20px; }
+        @media (max-width: 600px) { #mobile-joy { display: flex; } }
+        .joy-btn { width: 48px; height: 48px; background: var(--panel-color); border: 2px solid var(--accent-color); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--accent-color); font-size: 1.2rem; }
+        #btn-dash { width: 75px; background: var(--dash-color); border-color: #065f46; color: white; font-size: 0.8rem; font-weight: bold; }
+        #mute-btn { background: transparent; padding: 2px; color: #94a3b8; font-size: 1.2rem; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="ui-layer">
+            <div class="info-item">
+                <span class="info-label">音效</span>
+                <button id="mute-btn">🔊</button>
+            </div>
+            <div class="info-item">
+                <span class="info-label">当前关卡</span>
+                <span id="level-name">准备</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label" id="energy-label">冲刺能量</span>
+                <div id="energy-bar-container"><div id="energy-bar"></div></div>
+            </div>
+            <div class="info-item">
+                <span class="info-label">总分</span>
+                <span id="score-val" style="color: var(--success-color)">0</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">状态</span>
+                <span id="timer-text">等待</span>
+            </div>
+        </div>
+
+        <div id="canvas-wrapper">
+            <div id="fog-layer"></div>
+            <canvas id="gameCanvas"></canvas>
+
+            <div id="overlay">
+                <h1 id="msg-title">迷宫逃脱</h1>
+                <div class="author-tag">作者：安安</div>
+                
+                <div id="landing-content">
+                    <div class="story-section">
+                        你迷失在了不断变幻的量子迷宫中。深处的守卫正在苏醒，只有穿过重重迷雾，收集能量核心并找到出口，才能回到现实世界。
+                    </div>
+                    
+                    <div class="instruction-grid">
+                        <div class="instruction-item"><b>移动：</b>WASD / 方向键</div>
+                        <div class="instruction-item"><b>瞬移：</b>空格 / Shift</div>
+                        <div class="instruction-item"><b>目标：</b>寻找金色出口</div>
+                        <div class="instruction-item"><b>技巧：</b>吃<i>绿色豆</i>反击猎人</div>
+                    </div>
+                </div>
+
+                <div id="msg-body" class="hidden">
+                    <!-- 动态结果文本 -->
+                </div>
+                
+                <button id="start-btn">开始挑战</button>
+            </div>
+        </div>
+
+        <div id="mobile-joy">
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                <div></div><div class="joy-btn" id="btn-up">▲</div><div></div>
+                <div class="joy-btn" id="btn-left">◀</div><div class="joy-btn" id="btn-down">▼</div><div class="joy-btn" id="btn-right">▶</div>
+            </div>
+            <div style="display: flex; align-items: center;">
+                <div class="joy-btn" id="btn-dash">DASH</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const AudioEngine = {
+            ctx: null, isMuted: false,
+            init() { if (!this.ctx) try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} },
+            play(type) {
+                if (this.isMuted || !this.ctx || this.ctx.state === 'suspended') return;
+                const now = this.ctx.currentTime;
+                const osc = (f, t, d, g) => {
+                    const o = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                    o.type = t; o.frequency.setValueAtTime(f, now);
+                    gain.gain.setValueAtTime(g, now); gain.gain.exponentialRampToValueAtTime(0.01, now+d);
+                    o.connect(gain); gain.connect(this.ctx.destination);
+                    o.start(); o.stop(now+d);
+                };
+                switch(type) {
+                    case 'step': osc(440, 'triangle', 0.05, 0.02); break;
+                    case 'dash': osc(900, 'sine', 0.2, 0.08); break;
+                    case 'power': osc(880, 'square', 0.4, 0.08); break;
+                    case 'eat': osc(150, 'sawtooth', 0.15, 0.1); break;
+                    case 'tick': osc(1000, 'sine', 0.02, 0.03); break;
+                    case 'alert': osc(250, 'sawtooth', 0.5, 0.1); break;
+                    case 'win': [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => osc(f, 'sine', 0.4, 0.1), i*80)); break;
+                    case 'lose': osc(100, 'square', 1.0, 0.1); break;
+                }
+            }
+        };
+
+        const canvas = document.getElementById('gameCanvas'), ctx = canvas.getContext('2d');
+        const fogLayer = document.getElementById('fog-layer'), overlay = document.getElementById('overlay');
+        const startBtn = document.getElementById('start-btn'), scoreDisplay = document.getElementById('score-val');
+        const levelNameDisplay = document.getElementById('level-name'), timerText = document.getElementById('timer-text');
+        const dashBar = document.getElementById('energy-bar'), energyLabel = document.getElementById('energy-label');
+        const landingContent = document.getElementById('landing-content'), msgBody = document.getElementById('msg-body');
+
+        const GRID_W = 31, GRID_H = 31;
+        const getCellSize = () => Math.floor(Math.min(window.innerWidth * 0.95 / GRID_W, (window.innerHeight - 250) / GRID_H, 18));
+        let CELL_SIZE = getCellSize();
+        canvas.width = GRID_W * CELL_SIZE; canvas.height = GRID_H * CELL_SIZE;
+
+        let maze = [], hunters = [], player = { x: 1, y: 1 }, powerPellets = [];
+        let exit = { x: GRID_W-2, y: GRID_H-2 }, score = 0, level = 1;
+        let gameActive = false, gracePeriod = true, graceTimer = 0, gameTick = 0;
+        let keys = {}, dashCooldown = 0, powerTimer = 0;
+
+        const LEVELS = {
+            1: { name: "第一关：静谧深渊", hunters: 1, speed: 22, grace: 15, dynamic: false, fog: false },
+            2: { name: "第二关：影之追踪", hunters: 3, speed: 12, grace: 12, dynamic: false, fog: false },
+            3: { name: "第三关：迷雾幻境", hunters: 4, speed: 8, grace: 10, dynamic: true, fog: true }
+        };
+
+        function generateMaze() {
+            maze = Array(GRID_H).fill().map(() => Array(GRID_W).fill(1));
+            const stack = [[1, 1]]; maze[1][1] = 0;
+            while (stack.length > 0) {
+                const [cx, cy] = stack[stack.length-1];
+                const dirs = [[0, 2], [0, -2], [2, 0], [-2, 0]].sort(() => Math.random() - 0.5);
+                let found = false;
+                for (let [dx, dy] of dirs) {
+                    const nx = cx+dx, ny = cy+dy;
+                    if (nx > 0 && nx < GRID_W-1 && ny > 0 && ny < GRID_H-1 && maze[ny][nx] === 1) {
+                        maze[ny][nx] = 0; maze[cy+dy/2][cx+dx/2] = 0; stack.push([nx, ny]); found = true; break;
+                    }
+                }
+                if (!found) stack.pop();
+            }
+            maze[exit.y][exit.x] = 0;
+            powerPellets = [];
+            for(let i=0; i<60; i++) {
+                let rx = Math.floor(Math.random()*(GRID_W-2))+1, ry = Math.floor(Math.random()*(GRID_H-2))+1;
+                if(maze[ry][rx] === 1) maze[ry][rx] = 0;
+                if(i < 3 && maze[ry][rx] === 0) powerPellets.push({x: rx, y: ry});
+            }
+        }
+
+        function getNextHunterMove(hx, hy, tx, ty) {
+            const queue = [[hx, hy, []]], visited = new Set([`${hx},${hy}`]);
+            while (queue.length > 0) {
+                const [cx, cy, path] = queue.shift();
+                if (cx === tx && cy === ty) return path[0];
+                for (let [dx, dy] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+                    const nx = cx+dx, ny = cy+dy;
+                    if (nx >= 0 && nx < GRID_W && ny >= 0 && ny < GRID_H && maze[ny][nx] === 0 && !visited.has(`${nx},${ny}`)) {
+                        visited.add(`${nx},${ny}`); queue.push([nx, ny, [...path, {x: nx, y: ny}]]);
+                    }
+                }
+                if(queue.length > 1500) break;
+            }
+            return { x: hx, y: hy };
+        }
+
+        function initGame(targetLevel = 1) {
+            level = targetLevel; const config = LEVELS[level];
+            CELL_SIZE = getCellSize(); canvas.width = GRID_W * CELL_SIZE; canvas.height = GRID_H * CELL_SIZE;
+            generateMaze(); player = { x: 1, y: 1 }; hunters = [];
+            for (let i = 0; i < config.hunters; i++) hunters.push({ x: exit.x, y: exit.y });
+            gracePeriod = true; graceTimer = config.grace; levelNameDisplay.innerText = config.name;
+            timerText.innerText = `${graceTimer}s`; timerText.style.color = "#38bdf8";
+            fogLayer.style.display = config.fog ? 'block' : 'none';
+            dashCooldown = 0; powerTimer = 0;
+            if (!gameActive) { gameActive = true; gameLoop(); }
+        }
+
+        function checkCollisions() {
+            if (gracePeriod) return;
+            powerPellets = powerPellets.filter(p => {
+                if (p.x === player.x && p.y === player.y) {
+                    powerTimer = 300; AudioEngine.play('power'); score += 150; return false;
+                } return true;
+            });
+            for (let h of hunters) {
+                if (h.x === player.x && h.y === player.y) {
+                    if (powerTimer > 0) { h.x = exit.x; h.y = exit.y; score += 300; AudioEngine.play('eat'); }
+                    else { gameOver(); return true; }
+                }
+            } return false;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#1e293b'; ctx.strokeStyle = '#334155';
+            for (let y = 0; y < GRID_H; y++) {
+                for (let x = 0; x < GRID_W; x++) {
+                    if (maze[y][x] === 1) { ctx.fillRect(x*CELL_SIZE, y*CELL_SIZE, CELL_SIZE, CELL_SIZE); ctx.strokeRect(x*CELL_SIZE, y*CELL_SIZE, CELL_SIZE, CELL_SIZE); }
+                }
+            }
+            powerPellets.forEach(p => { ctx.fillStyle = '#10b981'; ctx.beginPath(); ctx.arc(p.x*CELL_SIZE+CELL_SIZE/2, p.y*CELL_SIZE+CELL_SIZE/2, CELL_SIZE/4, 0, Math.PI*2); ctx.fill(); });
+            ctx.fillStyle = '#fbbf24'; ctx.shadowBlur = 10; ctx.shadowColor = '#fbbf24';
+            ctx.fillRect(exit.x*CELL_SIZE+2, exit.y*CELL_SIZE+2, CELL_SIZE-4, CELL_SIZE-4); ctx.shadowBlur = 0;
+            hunters.forEach(h => {
+                ctx.fillStyle = gracePeriod ? '#475569' : (powerTimer > 0 ? '#38bdf8' : '#ef4444');
+                ctx.beginPath(); ctx.arc(h.x*CELL_SIZE+CELL_SIZE/2, h.y*CELL_SIZE+CELL_SIZE/2, CELL_SIZE/2.2, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.fillStyle = powerTimer > 0 ? '#fbbf24' : '#f8fafc';
+            if (powerTimer > 0) { ctx.shadowBlur = 15; ctx.shadowColor = '#fbbf24'; }
+            ctx.beginPath(); ctx.arc(player.x*CELL_SIZE+CELL_SIZE/2, player.y*CELL_SIZE+CELL_SIZE/2, CELL_SIZE/2.5, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0; ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2; ctx.stroke();
+            if (LEVELS[level].fog) {
+                const px = player.x*CELL_SIZE+CELL_SIZE/2, py = player.y*CELL_SIZE+CELL_SIZE/2;
+                const r = CELL_SIZE * (powerTimer > 0 ? 10 : 6);
+                fogLayer.style.background = `radial-gradient(circle ${r}px at ${px}px ${py}px, transparent 15%, rgba(0,0,0,0.99) 90%)`;
+            }
+        }
+
+        function handleInput() {
+            playerMoveTick++; let dx = 0, dy = 0;
+            if (keys['w'] || keys['arrowup']) dy -= 1; if (keys['s'] || keys['arrowdown']) dy += 1;
+            if (keys['a'] || keys['arrowleft']) dx -= 1; if (keys['d'] || keys['arrowright']) dx += 1;
+            const speed = powerTimer > 0 ? 2 : 3;
+            if ((dx !== 0 || dy !== 0) && playerMoveTick >= speed) { movePlayer(dx, dy); playerMoveTick = 0; }
+            if ((keys[' '] || keys['shift']) && dashCooldown <= 0 && (dx !== 0 || dy !== 0)) {
+                let fx = player.x, fy = player.y;
+                for(let i=1; i<=3; i++) {
+                    let tx = player.x+dx*i, ty = player.y+dy*i;
+                    if(tx >= 0 && tx < GRID_W && ty >= 0 && ty < GRID_H && maze[ty][tx] === 0) { fx = tx; fy = ty; } else break;
+                }
+                if(fx !== player.x || fy !== player.y) {
+                    player.x = fx; player.y = fy; dashCooldown = 120; AudioEngine.play('dash');
+                    if (checkCollisions()) return; if (player.x === exit.x && player.y === exit.y) winLevel();
+                }
+            }
+        }
+
+        function gameLoop() {
+            if (!gameActive) return; gameTick++; handleInput();
+            if (powerTimer > 0) {
+                powerTimer--; dashBar.style.width = (powerTimer/300*100)+'%'; dashBar.style.backgroundColor = 'var(--power-color)'; energyLabel.innerText = '超级模式!';
+            } else {
+                if (dashCooldown > 0) dashCooldown--; dashBar.style.width = ((120-dashCooldown)/120*100)+'%';
+                dashBar.style.backgroundColor = 'var(--dash-color)'; energyLabel.innerText = '冲刺能量';
+            }
+            if (gameTick % 10 === 0) { score += level; scoreDisplay.innerText = score; }
+            if (gracePeriod && gameTick % 60 === 0) {
+                graceTimer--;
+                if (graceTimer <= 0) { gracePeriod = false; timerText.innerText = "跑!"; timerText.style.color = "#ef4444"; AudioEngine.play('alert'); }
+                else { timerText.innerText = `${graceTimer}s`; if (graceTimer <= 5) AudioEngine.play('tick'); }
+            }
+            if (!gracePeriod && gameTick % LEVELS[level].speed === 0) {
+                hunters.forEach(h => { const n = getNextHunterMove(h.x, h.y, player.x, player.y); h.x = n.x; h.y = n.y; });
+                checkCollisions();
+            }
+            if (LEVELS[level].dynamic && gameTick % 120 === 0) {
+                for (let i=0; i<5; i++) {
+                    let rx = Math.floor(Math.random()*(GRID_W-2))+1, ry = Math.floor(Math.random()*(GRID_H-2))+1;
+                    if ((rx !== player.x || ry !== player.y) && (rx !== exit.x || ry !== exit.y)) maze[ry][rx] = maze[ry][rx] === 1 ? 0 : 1;
+                }
+            }
+            draw(); requestAnimationFrame(gameLoop);
+        }
+
+        function movePlayer(dx, dy) {
+            if (!gameActive) return;
+            const nx = player.x+dx, ny = player.y+dy;
+            if (nx >= 0 && nx < GRID_W && ny >= 0 && ny < GRID_H && maze[ny][nx] === 0) {
+                player.x = nx; player.y = ny; AudioEngine.play('step');
+                if (checkCollisions()) return; if (player.x === exit.x && player.y === exit.y) winLevel();
+            }
+        }
+
+        function winLevel() {
+            gameActive = false; AudioEngine.play('win');
+            landingContent.classList.add('hidden'); msgBody.classList.remove('hidden');
+            if (level < 3) {
+                document.getElementById('msg-title').innerText = "顺利突围！";
+                msgBody.innerHTML = `恭喜逃离了 ${LEVELS[level].name}<br>猎人们正聚集在下一关，准备好了吗？`;
+                startBtn.innerText = "挑战下一关";
+                startBtn.onclick = () => { overlay.classList.add('hidden'); initGame(level+1); };
+            } else {
+                document.getElementById('msg-title').innerText = "终极传奇！";
+                msgBody.innerHTML = `你征服了幻境迷宫！<br>最终传奇得分：<b>${score}</b>`;
+                startBtn.innerText = "再次挑战"; startBtn.onclick = () => location.reload();
+            }
+            overlay.classList.remove('hidden');
+        }
+
+        function gameOver() {
+            gameActive = false; AudioEngine.play('lose');
+            landingContent.classList.add('hidden'); msgBody.classList.remove('hidden');
+            document.getElementById('msg-title').innerText = "挑战失败";
+            msgBody.innerHTML = `<div style="font-size: 1.2rem; margin-bottom: 15px; color: var(--success-color);">总得分: ${score}</div>你在 ${LEVELS[level].name} 被猎人拦截。多利用<b>能量豆</b>和<b>冲刺</b>来躲避追捕！`;
+            startBtn.innerText = "重整旗鼓"; startBtn.onclick = () => location.reload();
+            overlay.classList.remove('hidden');
+        }
+
+        window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if (gameActive && ['w','s','a','d','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())) playerMoveTick = 3; });
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+        const setupMobile = (id, k) => { const el = document.getElementById(id); el.addEventListener('touchstart', e => { e.preventDefault(); keys[k] = true; }); el.addEventListener('touchend', e => { e.preventDefault(); keys[k] = false; }); };
+        setupMobile('btn-up', 'w'); setupMobile('btn-down', 's'); setupMobile('btn-left', 'a'); setupMobile('btn-right', 'd'); setupMobile('btn-dash', ' ');
+        startBtn.onclick = () => { AudioEngine.init(); overlay.classList.add('hidden'); initGame(1); };
+        document.getElementById('mute-btn').onclick = function() { AudioEngine.isMuted = !AudioEngine.isMuted; this.innerText = AudioEngine.isMuted ? '❌' : '🔊'; };
+        draw(); window.addEventListener('resize', () => { CELL_SIZE = getCellSize(); canvas.width = GRID_W*CELL_SIZE; canvas.height = GRID_H*CELL_SIZE; draw(); });
+    </script>
+</body>
+</html>

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>极速之巅</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #111;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 2px solid #333;
+            background: #000;
+        }
+    </style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+
+<script>
+// 获取画布和上下文
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// 画布尺寸设置
+canvas.width = 400;
+canvas.height = 600;
+
+// ==================== 游戏核心配置 ====================
+const game = {
+    screen: 'start', // start / playing / gameOver
+    score: 0,
+    highScore: localStorage.getItem('highScore') || 0,
+    speed: 3,
+    baseSpeed: 3,
+    maxSpeed: 12,  // 最大速度提升
+    minSpeed: 2,
+    cars: [],
+    spawnTimer: 0,
+    spawnInterval: 60,
+    minSpawnInterval: 25, // 车辆最小生成间隔
+    shake: 0,
+    flash: 0
+};
+
+// 玩家赛车
+const player = {
+    x: canvas.width / 2 - 25,
+    y: canvas.height - 100,
+    width: 50,
+    height: 80,
+    color: '#00ffff',
+    moveSpeed:5 // 基础移动速度
+};
+
+// 赛道线条
+const lines = [];
+for (let i = 0; i < canvas.height; i += 100) {
+    lines.push({ y: i });
+}
+
+// ==================== 键盘控制 ====================
+const keys = {
+    a: false,
+    d: false,
+    w: false,
+    s: false
+};
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'a' || e.key === 'A') keys.a = true;
+    if (e.key === 'd' || e.key === 'D') keys.d = true;
+    if (e.key === 'w' || e.key === 'W') keys.w = true;
+    if (e.key === 's' || e.key === 'S') keys.s = true;
+});
+
+document.addEventListener('keyup', (e) => {
+    if (e.key === 'a' || e.key === 'A') keys.a = false;
+    if (e.key === 'd' || e.key === 'D') keys.d = false;
+    if (e.key === 'w' || e.key === 'W') keys.w = false;
+    if (e.key === 's' || e.key === 'S') keys.s = false;
+});
+
+// 点击开始/重启
+canvas.addEventListener('click', () => {
+    if (game.screen === 'start') {
+        game.screen = 'playing';
+    }
+    if (game.screen === 'gameOver') {
+        resetGame();
+    }
+});
+
+// ==================== 生成敌方车辆 ====================
+function spawnCar() {
+    const lane = Math.random() * (canvas.width - 60) + 30;
+    game.cars.push({
+        x: lane - 25,
+        y: -100,
+        width: 50,
+        height: 80,
+        color: '#ff4444'
+    });
+}
+
+// ==================== 碰撞检测 ====================
+function checkCollision(a, b) {
+    return a.x < b.x + b.width &&
+           a.x + a.width > b.x &&
+           a.y < b.y + b.height &&
+           a.y + a.height > b.y;
+}
+
+// ==================== 游戏重置 ====================
+function resetGame() {
+    game.screen = 'playing';
+    game.score = 0;
+    game.speed = game.baseSpeed;
+    game.spawnInterval = 60;
+    game.cars = [];
+    player.x = canvas.width / 2 - 25;
+    player.moveSpeed = 5;
+    game.shake = 0;
+    game.flash = 0;
+}
+
+// ==================== 主循环 ====================
+function update() {
+    if (game.screen !== 'playing') return;
+
+    // ==================== 分数越高速度越快 ====================
+    game.speed = game.baseSpeed + Math.floor(game.score / 200) * 0.5;
+    if (game.speed > game.maxSpeed) game.speed = game.maxSpeed;
+
+    // 手动加速/减速 → 【加速已调慢】
+    if (keys.w && game.speed < game.maxSpeed) game.speed += 0.02; // 从0.05 → 0.02 更慢
+    if (keys.s && game.speed > game.minSpeed) game.speed -= 0.08;
+
+    // 速度自动回退
+    if (!keys.w && !keys.s && game.speed > game.baseSpeed + Math.floor(game.score / 200) * 0.5) {
+        game.speed -= 0.03;
+    }
+
+    // 分数越高，车生成越快
+    game.spawnInterval = 60 - Math.floor(game.score / 300) * 5;
+    if (game.spawnInterval < game.minSpawnInterval) game.spawnInterval = game.minSpawnInterval;
+
+    // ==================== 分数越高，左右移动越快 ====================
+    player.moveSpeed = 5 + Math.floor(game.score / 250);
+    if(player.moveSpeed > 10) player.moveSpeed = 10; // 最高速度限制
+    
+    // 玩家移动
+    if (keys.a && player.x > 20) player.x -= player.moveSpeed;
+    if (keys.d && player.x < canvas.width - 70) player.x += player.moveSpeed;
+
+    // 赛道滚动
+    lines.forEach(line => {
+        line.y += game.speed;
+        if (line.y > canvas.height) line.y = -50;
+    });
+
+    // 生成敌人
+    game.spawnTimer++;
+    if (game.spawnTimer >= game.spawnInterval) {
+        spawnCar();
+        game.spawnTimer = 0;
+    }
+
+    // 敌方车辆移动 & 计分
+    game.cars.forEach((car, index) => {
+        car.y += game.speed;
+
+        // 超越得分（整数）
+        if (car.y > player.y + player.height && !car.scored) {
+            game.score += 50;
+            car.scored = true;
+            game.shake = 5;
+        }
+
+        // 碰撞判定
+        if (checkCollision(player, car)) {
+            game.screen = 'gameOver';
+            game.flash = 10;
+            if (game.score > game.highScore) {
+                game.highScore = game.score;
+                localStorage.setItem('highScore', game.highScore);
+            }
+        }
+
+        // 移除屏幕外车辆
+        if (car.y > canvas.height) {
+            game.cars.splice(index, 1);
+        }
+    });
+
+    // 持续得分（整数）
+    game.score += Math.floor(game.speed);
+
+    // 屏幕震动衰减
+    if (game.shake > 0) game.shake -= 0.5;
+    if (game.flash > 0) game.flash -= 1;
+}
+
+// ==================== 渲染 ====================
+function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 屏幕震动效果
+    if (game.shake > 0) {
+        ctx.save();
+        ctx.translate(Math.random() * game.shake - game.shake/2, Math.random() * game.shake - game.shake/2);
+    }
+
+    // 绘制赛道
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // 赛道分隔线
+    ctx.fillStyle = '#fff';
+    lines.forEach(line => {
+        ctx.fillRect(canvas.width/2 - 5, line.y, 10, 50);
+    });
+
+    // 绘制玩家赛车
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    // 加速拖影
+    if (keys.w) {
+        ctx.fillStyle = 'rgba(0, 255, 255, 0.5)';
+        ctx.fillRect(player.x, player.y + 20, player.width, player.height);
+    }
+
+    // 绘制敌方车辆
+    game.cars.forEach(car => {
+        ctx.fillStyle = car.color;
+        ctx.fillRect(car.x, car.y, car.width, car.height);
+    });
+
+    // 碰撞闪红
+    if (game.flash > 0) {
+        ctx.fillStyle = `rgba(255, 0, 0, ${game.flash / 10})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // 震动恢复
+    if (game.shake > 0) ctx.restore();
+
+    // UI 文字（全部整数）
+    ctx.fillStyle = '#fff';
+    ctx.font = '20px Arial';
+    ctx.fillText(`速度: ${game.speed.toFixed(1)}`, 20, 30);
+    ctx.fillText(`得分: ${game.score}`, canvas.width - 150, 30);
+    ctx.fillText(`最高分: ${game.highScore}`, canvas.width - 150, 55);
+
+    // 开始界面
+    if (game.screen === 'start') {
+        ctx.fillStyle = '#00ffff';
+        ctx.font = '40px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('极速之巅', canvas.width/2, 200);
+        ctx.font = '20px Arial';
+        ctx.fillStyle = '#fff';
+        ctx.fillText('A/D 左右移动', canvas.width/2, 280);
+        ctx.fillText('W 加速 | S 减速', canvas.width/2, 310);
+        ctx.fillText('点击屏幕开始', canvas.width/2, 380);
+        ctx.textAlign = 'left';
+    }
+
+    // 结束界面
+    if (game.screen === 'gameOver') {
+        ctx.fillStyle = '#ff4444';
+        ctx.font = '40px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('游戏结束', canvas.width/2, 200);
+        ctx.font = '25px Arial';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(`最终得分: ${game.score}`, canvas.width/2, 260);
+        ctx.fillText(`历史最高分: ${game.highScore}`, canvas.width/2, 295);
+        ctx.fillText('点击重新开始', canvas.width/2, 380);
+        ctx.textAlign = 'left';
+    }
+}
+
+// ==================== 游戏循环 ====================
+function gameLoop() {
+    update();
+    render();
+    requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+</body>
+</html>

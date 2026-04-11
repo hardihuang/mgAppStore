@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经典2D平台冒险 - 终极冰火版</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #111;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            color: white;
+            user-select: none;
+        }
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            border: 4px solid #fff;
+            background-color: #5C94FC;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+        #ui {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            text-shadow: 2px 2px #000;
+            font-weight: bold;
+            font-size: 20px;
+            z-index: 10;
+        }
+        .message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.85);
+            padding: 30px;
+            text-align: center;
+            border-radius: 15px;
+            display: none;
+            border: 2px solid #FFD700;
+            z-index: 20;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 20px;
+            cursor: pointer;
+            background: #e52521;
+            color: white;
+            border: 2px solid #fff;
+            border-radius: 8px;
+            margin-top: 15px;
+            transition: transform 0.2s, background 0.2s;
+            font-weight: bold;
+        }
+        button:hover {
+            transform: scale(1.1);
+            background: #ff4500;
+        }
+        #hint {
+            position: absolute;
+            bottom: 10px;
+            width: 100%;
+            text-align: center;
+            font-size: 14px;
+            color: rgba(255,255,255,0.9);
+            text-shadow: 1px 1px #000;
+        }
+        .ui-item {
+            background: rgba(0,0,0,0.4);
+            padding: 5px 15px;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="ui">
+            <div class="ui-item">分数: <span id="score">0</span></div>
+            <div class="ui-item" style="color:#FFD700">关卡: 1-<span id="level">1</span></div>
+            <div class="ui-item" style="color:#ff6b6b">生命: <span id="lives">3</span></div>
+        </div>
+        <div id="msg-box" class="message">
+            <h2 id="msg-text" style="margin-top:0; font-size:32px;">游戏结束</h2>
+            <p id="msg-subtext" style="font-size:18px;"></p>
+            <button onclick="resetGame()" id="msg-btn">重新开始</button>
+        </div>
+        <div id="hint">WASD/方向键移动 | 空格跳跃 | 获能力后按 J 键发射 | 留意可疑角落哦</div>
+    </div>
+
+<script>
+/**
+ * 音效系统
+ */
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playSound(type) {
+    if (audioCtx.state === 'suspended') return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+
+    switch(type) {
+        case 'jump':
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now); osc.stop(now + 0.1); break;
+        case 'shoot': // 发射火球/冰球
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now); osc.stop(now + 0.1); break;
+        case 'freeze': // 冻结敌人
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1200, now);
+            osc.frequency.linearRampToValueAtTime(2000, now + 0.15);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+            osc.start(now); osc.stop(now + 0.15); break;
+        case 'shatter': // 碎冰
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.exponentialRampToValueAtTime(50, now + 0.2);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now); osc.stop(now + 0.2); break;
+        case 'coin':
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(900, now);
+            osc.frequency.setValueAtTime(1200, now + 0.05);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now); osc.stop(now + 0.2); break;
+        case 'secret': // 发现隐藏
+            osc.type = 'sine';
+            [523, 659, 783, 1046].forEach((freq, i) => { // C大调琶音
+                const sOsc = audioCtx.createOscillator();
+                const sGain = audioCtx.createGain();
+                sOsc.frequency.value = freq;
+                sOsc.connect(sGain); sGain.connect(audioCtx.destination);
+                sGain.gain.setValueAtTime(0.1, now + i*0.1);
+                sGain.gain.linearRampToValueAtTime(0, now + i*0.1 + 0.2);
+                sOsc.start(now + i*0.1); sOsc.stop(now + i*0.1 + 0.2);
+            }); break;
+        case 'stomp':
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, now);
+            osc.frequency.linearRampToValueAtTime(50, now + 0.1);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now); osc.stop(now + 0.1); break;
+        case 'bump':
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(100, now);
+            osc.frequency.linearRampToValueAtTime(80, now + 0.1);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now); osc.stop(now + 0.1); break;
+        case 'powerup':
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.linearRampToValueAtTime(500, now + 0.2);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now); osc.stop(now + 0.2); break;
+        case 'shrink':
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(600, now);
+            osc.frequency.exponentialRampToValueAtTime(100, now + 0.3);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now); osc.stop(now + 0.3); break;
+        case 'bossHit':
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(100, now);
+            osc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now); osc.stop(now + 0.3); break;
+        case 'win':
+            osc.type = 'sine';
+            [440, 554, 659, 880].forEach((freq, i) => {
+                const stepNode = audioCtx.createOscillator();
+                const stepGain = audioCtx.createGain();
+                stepNode.type = 'square';
+                stepNode.frequency.value = freq;
+                stepNode.connect(stepGain); stepGain.connect(audioCtx.destination);
+                stepGain.gain.setValueAtTime(0.05, now + i*0.15);
+                stepGain.gain.linearRampToValueAtTime(0, now + i*0.15 + 0.2);
+                stepNode.start(now + i*0.15); stepNode.stop(now + i*0.15 + 0.2);
+            }); break;
+        case 'die':
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.linearRampToValueAtTime(100, now + 0.6);
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.6);
+            osc.start(now); osc.stop(now + 0.6); break;
+    }
+}
+
+/**
+ * 核心配置与状态
+ */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const uiElements = {
+    score: document.getElementById('score'),
+    lives: document.getElementById('lives'),
+    level: document.getElementById('level'),
+    msgBox: document.getElementById('msg-box'),
+    msgText: document.getElementById('msg-text'),
+    msgSub: document.getElementById('msg-subtext'),
+    msgBtn: document.getElementById('msg-btn')
+};
+
+canvas.width = 800;
+canvas.height = 480;
+
+const GRAVITY = 0.8;
+const JUMP_FORCE = -15;
+const WALK_SPEED = 5;
+const TILE_SIZE = 40;
+
+let gameState = {
+    score: 0, lives: 3, level: 1, maxLevel: 5,
+    gameOver: false, gameWon: false, cameraX: 0, levelLength: 3000, time: 0
+};
+
+let keys = {};
+let clouds = [];
+let player;
+let entities = {
+    enemies: [], coins: [], blocks: [], items: [], particles: [], projectiles: []
+};
+let boss = null;
+let princess = null;
+
+// 初始化云朵
+for(let i=0; i<15; i++) {
+    clouds.push({
+        x: Math.random() * 3000, y: Math.random() * 150,
+        speed: 0.1 + Math.random() * 0.3, size: 30 + Math.random() * 20
+    });
+}
+
+/**
+ * 实体类
+ */
+class Player {
+    constructor() { this.reset(true); }
+
+    reset(fullReset = false) {
+        this.x = 100;
+        this.y = canvas.height - TILE_SIZE - (this.form !== 'small' ? 60 : 40);
+        this.vx = 0; this.vy = 0;
+        this.width = 30;
+        this.onGround = false;
+        this.facing = 1;
+        this.invincible = fullReset ? 0 : 60; 
+        if (fullReset) this.form = 'small'; // 'small', 'super', 'fire', 'ice'
+        this.height = this.form === 'small' ? 40 : 60;
+        this.lastShootKey = false;
+    }
+
+    upgrade(type) {
+        if (this.form === 'small' && type === 'mushroom') {
+            this.form = 'super';
+            this.y -= 20; this.height = 60;
+            playSound('powerup');
+        } else if (type === 'fireflower' && this.form !== 'fire') {
+            if (this.form === 'small') { this.y -= 20; this.height = 60; }
+            this.form = 'fire';
+            playSound('powerup');
+        } else if (type === 'iceflower' && this.form !== 'ice') {
+            if (this.form === 'small') { this.y -= 20; this.height = 60; }
+            this.form = 'ice';
+            playSound('powerup');
+        } else {
+            playSound('coin'); // 如果已经有了相同的，加分
+        }
+        gameState.score += 1000;
+        uiElements.score.textContent = gameState.score;
+        for(let i=0; i<10; i++) createParticle(this.x+15, this.y+30, '#fff');
+    }
+
+    takeDamage() {
+        if (this.invincible > 0) return;
+        if (this.form === 'fire' || this.form === 'ice' || this.form === 'super') {
+            this.form = 'small';
+            this.height = 40;
+            this.invincible = 90;
+            playSound('shrink');
+        } else {
+            this.die();
+        }
+    }
+
+    update() {
+        if (this.invincible > 0) this.invincible--;
+
+        // 移动
+        if (keys['ArrowRight'] || keys['d']) { this.vx = WALK_SPEED; this.facing = 1; }
+        else if (keys['ArrowLeft'] || keys['a']) { this.vx = -WALK_SPEED; this.facing = -1; }
+        else { this.vx *= 0.8; }
+
+        // 跳跃
+        if ((keys['ArrowUp'] || keys['w'] || keys[' ']) && this.onGround) {
+            this.vy = JUMP_FORCE;
+            this.onGround = false;
+            playSound('jump');
+        }
+
+        // 发射子弹
+        if (keys['j'] && !this.lastShootKey && (this.form === 'fire' || this.form === 'ice')) {
+            if (entities.projectiles.length < 3) { // 限制屏幕同屏子弹数
+                let px = this.facing === 1 ? this.x + this.width : this.x - 12;
+                entities.projectiles.push(new Projectile(px, this.y + 20, this.facing, this.form));
+                playSound('shoot');
+            }
+        }
+        this.lastShootKey = keys['j'];
+
+        this.vy += GRAVITY;
+        if(this.vy > 15) this.vy = 15;
+
+        this.x += this.vx;
+        if (this.x < 0) this.x = 0;
+        if (gameState.level === 5 && this.x > canvas.width - this.width) this.x = canvas.width - this.width;
+
+        this.y += this.vy;
+
+        if (this.y > canvas.height + 50) this.die();
+    }
+
+    draw() {
+        if (this.invincible > 0 && Math.floor(gameState.time / 5) % 2 === 0) return;
+
+        ctx.save();
+        ctx.translate(this.x - gameState.cameraX, this.y);
+        
+        // 变装配色
+        let shirtColor = '#e52521', pantsColor = '#0055cc';
+        if (this.form === 'fire') { shirtColor = '#ffffff'; pantsColor = '#e52521'; }
+        else if (this.form === 'ice') { shirtColor = '#00ffff'; pantsColor = '#00008b'; }
+
+        // 帽子
+        ctx.fillStyle = shirtColor;
+        ctx.fillRect(2, 0, 26, 8); 
+        if(this.facing === 1) ctx.fillRect(15, 0, 15, 4);
+        else ctx.fillRect(-2, 0, 15, 4);
+
+        // 头
+        ctx.fillStyle = '#ffdbac'; ctx.fillRect(6, 8, 18, 14);
+        ctx.fillStyle = '#000'; // 眼睛/胡子
+        ctx.fillRect(this.facing === 1 ? 18 : 8, 12, 4, 4);
+        ctx.fillRect(6, 18, 18, 2);
+
+        // 身体
+        ctx.fillStyle = shirtColor;
+        let bodyY = 22, bodyH = this.form !== 'small' ? 24 : 10;
+        ctx.fillRect(6, bodyY, 18, bodyH);
+
+        // 裤子
+        ctx.fillStyle = pantsColor;
+        ctx.fillRect(6, bodyY + bodyH, 18, 10);
+        ctx.fillStyle = '#FFD700'; // 背带扣
+        ctx.fillRect(8, bodyY + 4, 4, 4); ctx.fillRect(20, bodyY + 4, 4, 4);
+
+        ctx.restore();
+    }
+
+    die() {
+        gameState.lives--;
+        uiElements.lives.textContent = gameState.lives;
+        playSound('die');
+        if (gameState.lives <= 0) showMsg("GAME OVER", "再接再厉，公主还在等着你！");
+        else this.reset(true);
+    }
+}
+
+class Projectile {
+    constructor(x, y, dir, type) {
+        this.x = x; this.y = y; this.width = 12; this.height = 12;
+        this.vx = dir * 8; this.vy = 0; this.type = type; this.dead = false;
+        this.life = 120; // 存活时间
+    }
+    update() {
+        this.life--;
+        if (this.life <= 0) this.dead = true;
+
+        this.vy += GRAVITY * 0.5;
+        this.x += this.vx; this.y += this.vy;
+
+        // 地面反弹
+        if (this.y + this.height > canvas.height - TILE_SIZE) {
+            this.y = canvas.height - TILE_SIZE - this.height;
+            this.vy = -6; // 弹跳高度
+        }
+    }
+    draw() {
+        ctx.fillStyle = this.type === 'fire' ? '#ff4500' : '#00ffff';
+        ctx.beginPath();
+        ctx.arc(this.x - gameState.cameraX + 6, this.y + 6, 6, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        ctx.arc(this.x - gameState.cameraX + 4, this.y + 4, 2, 0, Math.PI*2);
+        ctx.fill();
+    }
+}
+
+class CuterGoomba {
+    constructor(x, y) {
+        this.x = x; this.y = y; this.width = 36; this.height = 36;
+        this.vx = -1.5; this.dead = false; this.deadTimer = 0;
+        this.frozen = false; this.freezeTimer = 0; this.savedVx = 0;
+    }
+    update() {
+        if (this.dead) { this.deadTimer++; return; }
+        
+        if (this.frozen) {
+            this.freezeTimer--;
+            if (this.freezeTimer <= 0) {
+                this.frozen = false;
+                this.vx = this.savedVx;
+            }
+            return; // 冻结时不移动
+        }
+
+        this.vy = (this.vy || 0) + GRAVITY;
+        this.y += this.vy;
+        
+        if (this.y + this.height > canvas.height - TILE_SIZE) {
+            this.y = canvas.height - TILE_SIZE - this.height;
+            this.vy = 0;
+        }
+        this.x += this.vx;
+    }
+    draw() {
+        if (this.deadTimer > 30) return; 
+        const dx = this.x - gameState.cameraX;
+        ctx.save();
+        ctx.translate(dx + this.width/2, this.y + this.height);
+
+        if (this.dead) {
+            ctx.scale(1, 0.3); ctx.translate(0, -this.height);
+        } else {
+            ctx.translate(0, -this.height + (this.frozen ? 0 : Math.sin(gameState.time * 0.2) * 2));
+        }
+
+        ctx.fillStyle = '#D2691E'; 
+        ctx.beginPath(); ctx.arc(0, 15, 18, Math.PI, 0); 
+        ctx.lineTo(18, 30); ctx.lineTo(-18, 30); ctx.closePath(); ctx.fill();
+
+        if (!this.dead) {
+            ctx.fillStyle = 'white';
+            ctx.beginPath(); ctx.ellipse(-7, 18, 5, 8, 0, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(7, 18, 5, 8, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = 'black';
+            let look = this.vx > 0 ? 2 : (this.vx < 0 ? -2 : 0);
+            ctx.beginPath(); ctx.arc(-7 + look, 18, 3, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(7 + look, 18, 3, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = 'rgba(255,100,100,0.6)';
+            ctx.beginPath(); ctx.arc(-14, 24, 4, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(14, 24, 4, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#3e2723';
+            let step = this.frozen ? 0 : Math.sin(gameState.time * 0.3) * 3;
+            ctx.beginPath(); ctx.arc(-10, 36 + step, 6, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(10, 36 - step, 6, 0, Math.PI*2); ctx.fill();
+        }
+
+        if (this.frozen) {
+            // 冰块特效
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.5)';
+            ctx.fillRect(-20, -5, 40, 45);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.strokeRect(-20, -5, 40, 45);
+        }
+
+        ctx.restore();
+    }
+}
+
+class Block {
+    constructor(x, y, type, content = null) {
+        this.x = x; this.y = y; this.width = 40; this.height = 40;
+        this.type = type; // 'question', 'brick', 'platform', 'hidden'
+        this.content = content; 
+        this.used = false; this.offsetY = 0;
+    }
+    
+    hit() {
+        if (this.used || this.type === 'platform') { playSound('bump'); return; }
+        
+        this.offsetY = -15; 
+
+        if (this.type === 'hidden') {
+            this.type = 'question'; // 现出原形
+            this.used = true;
+            playSound('secret');
+            // 彩蛋大爆金币
+            for(let i=0; i<30; i++) {
+                setTimeout(() => {
+                    let c = new Coin(this.x, this.y - 20);
+                    c.vy = -5 - Math.random()*5; c.vx = (Math.random()-0.5)*10;
+                    entities.coins.push(c);
+                    playSound('coin');
+                    gameState.score += 100;
+                    uiElements.score.textContent = gameState.score;
+                }, i * 50);
+            }
+            // 产生彩蛋文字
+            createParticle(this.x, this.y-50, '#FFD700', "开发者的金库!");
+            return;
+        }
+
+        playSound('bump');
+        if (this.type === 'question') {
+            this.used = true;
+            if (this.content === 'coin') {
+                gameState.score += 100; uiElements.score.textContent = gameState.score;
+                playSound('coin');
+                createParticle(this.x + 20, this.y - 20, '#FFD700');
+            } else if (this.content === 'mushroom') {
+                entities.items.push(new PowerItem(this.x + 5, this.y, 'mushroom'));
+                playSound('powerup');
+            } else if (this.content === 'fireflower' || this.content === 'iceflower') {
+                entities.items.push(new PowerItem(this.x + 5, this.y, this.content));
+                playSound('powerup');
+            }
+        } else if (this.type === 'brick') {
+            if (player.form !== 'small') {
+                this.dead = true; playSound('stomp');
+                for(let i=0; i<4; i++) createParticle(this.x+20, this.y+20, '#CD853F');
+            }
+        }
+    }
+    update() {
+        if (this.offsetY < 0) this.offsetY += 1.5; else this.offsetY = 0;
+    }
+    draw() {
+        if(this.dead || this.type === 'hidden') return;
+        const dx = this.x - gameState.cameraX; const dy = this.y + this.offsetY;
+
+        if (this.type === 'question') {
+            if (this.used) {
+                ctx.fillStyle = '#8B4513'; ctx.fillRect(dx, dy, this.width, this.height);
+                ctx.strokeStyle = '#000'; ctx.strokeRect(dx, dy, this.width, this.height);
+                ctx.fillStyle = 'black';
+                ctx.fillRect(dx+4, dy+4, 4, 4); ctx.fillRect(dx+32, dy+4, 4, 4);
+                ctx.fillRect(dx+4, dy+32, 4, 4); ctx.fillRect(dx+32, dy+32, 4, 4);
+            } else {
+                ctx.fillStyle = Math.floor(gameState.time / 15) % 2 === 0 ? '#FFD700' : '#FFA500';
+                ctx.fillRect(dx, dy, this.width, this.height);
+                ctx.strokeStyle = '#000'; ctx.strokeRect(dx, dy, this.width, this.height);
+                ctx.fillStyle = '#000'; ctx.font = 'bold 24px Arial'; ctx.fillText('?', dx + 12, dy + 28);
+            }
+        } else if (this.type === 'brick') {
+            ctx.fillStyle = gameState.level === 4 ? '#4a3f35' : '#CD853F'; // 关卡4暗黑风
+            ctx.fillRect(dx, dy, this.width, this.height);
+            ctx.strokeStyle = '#5D2906'; ctx.lineWidth = 2; ctx.strokeRect(dx, dy, this.width, this.height);
+            ctx.beginPath(); ctx.moveTo(dx + this.width/2, dy); ctx.lineTo(dx + this.width/2, dy + this.height);
+            ctx.moveTo(dx, dy + this.height/2); ctx.lineTo(dx + this.width, dy + this.height/2); ctx.stroke();
+        } else if (this.type === 'platform') {
+            ctx.fillStyle = gameState.level === 4 ? '#333' : '#A52A2A';
+            ctx.fillRect(dx, dy, this.width, this.height);
+            ctx.fillStyle = gameState.level === 4 ? '#115511' : '#228B22'; 
+            ctx.fillRect(dx, dy, this.width, 8);
+            ctx.strokeRect(dx, dy, this.width, this.height);
+        }
+    }
+}
+
+class PowerItem {
+    constructor(x, y, type) {
+        this.x = x; this.y = y; this.width = 30; this.height = 30;
+        this.type = type; // 'mushroom', 'fireflower', 'iceflower'
+        this.vx = type === 'mushroom' ? 2 : 0; // 花不移动
+        this.vy = -5; this.active = true;
+    }
+    update() {
+        if(!this.active) return;
+        this.vy += GRAVITY; this.x += this.vx; this.y += this.vy;
+        if (this.y + this.height > canvas.height - TILE_SIZE) {
+            this.y = canvas.height - TILE_SIZE - this.height; this.vy = 0;
+        }
+        // 简单阻挡
+        entities.blocks.forEach(b => {
+            if(!b.dead && this.y + this.height > b.y && this.y < b.y && this.x + this.width > b.x && this.x < b.x + b.width) {
+                this.y = b.y - this.height; this.vy = 0;
+            }
+        });
+    }
+    draw() {
+        if(!this.active) return;
+        const dx = this.x - gameState.cameraX;
+        
+        if (this.type === 'mushroom') {
+            ctx.fillStyle = '#e52521'; ctx.beginPath(); ctx.arc(dx + 15, this.y + 15, 15, Math.PI, 0); ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.beginPath(); ctx.arc(dx + 8, this.y + 8, 4, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(dx + 22, this.y + 8, 4, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(dx + 15, this.y + 3, 4, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#ffdbac'; ctx.fillRect(dx + 8, this.y + 15, 14, 15);
+            ctx.fillStyle = 'black'; ctx.fillRect(dx + 11, this.y + 18, 2, 4); ctx.fillRect(dx + 17, this.y + 18, 2, 4);
+        } else {
+            // 画花
+            let baseColor = this.type === 'fireflower' ? '#ff4500' : '#00ffff';
+            let blinkColor = this.type === 'fireflower' ? '#ffd700' : '#ffffff';
+            ctx.fillStyle = Math.floor(gameState.time / 5) % 2 === 0 ? baseColor : blinkColor;
+            ctx.beginPath(); ctx.arc(dx + 15, this.y + 15, 12, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(dx + 15, this.y + 15, 5, 0, Math.PI*2); ctx.fill();
+            // 花的叶子
+            ctx.fillStyle = '#00ff00';
+            ctx.fillRect(dx + 13, this.y + 27, 4, 10);
+            ctx.fillRect(dx + 8, this.y + 30, 5, 3); ctx.fillRect(dx + 17, this.y + 30, 5, 3);
+        }
+    }
+}
+
+class Coin {
+    constructor(x, y) {
+        this.x = x; this.y = y; this.width = 20; this.height = 20;
+        this.collected = false; this.baseY = y;
+        this.vx = 0; this.vy = 0; // 用于彩蛋物理金币
+    }
+    update() {
+        if (this.vx !== 0 || this.vy !== 0) {
+            this.vy += GRAVITY; this.x += this.vx; this.y += this.vy;
+            if (this.y + this.height > canvas.height - TILE_SIZE) {
+                this.y = canvas.height - TILE_SIZE - this.height; this.vy *= -0.5; this.vx *= 0.8;
+            }
+        }
+    }
+    draw() {
+        if (this.collected) return;
+        const dx = this.x - gameState.cameraX;
+        const dy = (this.vx===0 && this.vy===0) ? this.baseY + Math.sin(gameState.time * 0.1) * 5 : this.y;
+        
+        ctx.fillStyle = '#FFD700'; ctx.beginPath();
+        ctx.ellipse(dx + 10, dy + 10, 8, 12, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 2; ctx.stroke();
+    }
+}
+
+class BossBowser {
+    constructor(x, y) {
+        this.x = x; this.y = y; this.width = 80; this.height = 80;
+        this.vx = -2; this.vy = 0; this.hp = 5; this.invincible = 0; this.jumpTimer = 0;
+    }
+    update() {
+        if (this.hp <= 0) return;
+        if (this.invincible > 0) this.invincible--;
+
+        this.jumpTimer++;
+        if (this.jumpTimer > 100 && this.vy === 0) { 
+            this.vy = -12; this.jumpTimer = 0;
+        }
+
+        this.vy += GRAVITY; this.x += this.vx; this.y += this.vy;
+
+        if (this.x < gameState.cameraX + 50) { this.x = gameState.cameraX + 50; this.vx = 2.5; }
+        if (this.x > canvas.width - 100) { this.x = canvas.width - 100; this.vx = -2.5; }
+
+        if (this.y + this.height > canvas.height - TILE_SIZE) {
+            this.y = canvas.height - TILE_SIZE - this.height; this.vy = 0;
+        }
+    }
+    takeDamage(amount) {
+        if (this.invincible > 0) return;
+        this.hp -= amount;
+        playSound('bossHit');
+        this.invincible = 40;
+        if (this.hp <= 0) {
+            gameState.score += 5000; uiElements.score.textContent = gameState.score;
+            for(let i=0; i<30; i++) createParticle(this.x+40, this.y+40, '#FF4500');
+            playSound('stomp'); 
+        }
+    }
+    draw() {
+        if (this.hp <= 0) return;
+        if (this.invincible > 0 && Math.floor(gameState.time / 4) % 2 === 0) return;
+        const dx = this.x - gameState.cameraX;
+
+        ctx.fillStyle = '#006400'; ctx.beginPath(); ctx.arc(dx + 40, this.y + 40, 40, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = '#FFD700'; ctx.fillRect(dx, this.y + 35, 80, 15);
+        ctx.fillStyle = 'white';
+        for(let i=0; i<3; i++) {
+            ctx.beginPath(); ctx.moveTo(dx + 20 + i*20, this.y + 5);
+            ctx.lineTo(dx + 15 + i*20, this.y - 10); ctx.lineTo(dx + 25 + i*20, this.y - 10); ctx.fill();
+        }
+        ctx.fillStyle = '#FF8C00'; let faceOffset = this.vx < 0 ? -15 : 15;
+        ctx.fillRect(dx + 25 + faceOffset, this.y + 40, 30, 30);
+        ctx.fillStyle = 'red'; ctx.fillRect(dx + 30 + faceOffset + (this.vx<0?0:10), this.y + 45, 8, 8);
+        ctx.fillStyle = '#FF8C00'; ctx.fillRect(dx + 15, this.y + 70, 15, 10); ctx.fillRect(dx + 50, this.y + 70, 15, 10);
+    }
+}
+
+class Princess {
+    constructor(x, y) { this.x = x; this.y = y; this.width = 40; this.height = 60; }
+    draw() {
+        const dx = this.x - gameState.cameraX;
+        ctx.fillStyle = '#FFB6C1'; ctx.beginPath();
+        ctx.moveTo(dx + 20, this.y + 20); ctx.lineTo(dx, this.y + 60); ctx.lineTo(dx + 40, this.y + 60); ctx.fill();
+        ctx.fillStyle = '#ffdbac'; ctx.fillRect(dx + 10, this.y, 20, 20);
+        ctx.fillStyle = '#FFD700'; ctx.beginPath();
+        ctx.moveTo(dx + 10, this.y); ctx.lineTo(dx + 10, this.y - 15); ctx.lineTo(dx + 15, this.y - 5);
+        ctx.lineTo(dx + 20, this.y - 15); ctx.lineTo(dx + 25, this.y - 5); ctx.lineTo(dx + 30, this.y - 15);
+        ctx.lineTo(dx + 30, this.y); ctx.fill();
+        ctx.fillStyle = 'black'; ctx.fillRect(dx + 14, this.y + 8, 3, 3); ctx.fillRect(dx + 23, this.y + 8, 3, 3);
+    }
+}
+
+function createParticle(x, y, color, text = null) {
+    entities.particles.push({
+        x: x, y: y, vx: (Math.random() - 0.5) * 5, vy: (Math.random() - 1) * 5,
+        life: 40, color: color, text: text
+    });
+}
+
+/**
+ * 五大关卡生成
+ */
+function loadLevel(levelNum) {
+    gameState.level = levelNum;
+    uiElements.level.textContent = levelNum;
+    gameState.cameraX = 0;
+    entities.projectiles = []; // 清空子弹
+    player.reset(false);
+    
+    entities.enemies = []; entities.coins = []; entities.blocks = []; entities.items = []; entities.particles = [];
+    boss = null; princess = null;
+
+    if (levelNum === 1) { // 关卡1：基础，蘑菇
+        gameState.levelLength = 2500;
+        for(let i=0; i<5; i++) {
+            let sx = 300 + i * 400;
+            entities.blocks.push(new Block(sx, 300, 'question', 'coin'));
+            entities.blocks.push(new Block(sx+40, 300, 'brick'));
+            if(i===1) entities.blocks.push(new Block(sx+80, 300, 'question', 'mushroom'));
+            entities.enemies.push(new CuterGoomba(sx + 200, 100));
+            entities.coins.push(new Coin(sx + 100, 380));
+        }
+    } else if (levelNum === 2) { // 关卡2：引入火焰花，沟壑
+        gameState.levelLength = 3000;
+        for(let i=0; i<6; i++) {
+            let sx = 400 + i * 400;
+            entities.blocks.push(new Block(sx, 250, 'platform')); entities.blocks[entities.blocks.length-1].width = 150;
+            entities.enemies.push(new CuterGoomba(sx + 50, 200));
+            if (i===0) entities.blocks.push(new Block(sx + 50, 150, 'question', 'fireflower'));
+            else entities.blocks.push(new Block(sx + 50, 150, 'question', 'coin'));
+        }
+    } else if (levelNum === 3) { // 关卡3：引入冰霜花，更多敌人
+        gameState.levelLength = 3000;
+        for(let i=0; i<7; i++) {
+            let sx = 300 + i * 350;
+            entities.enemies.push(new CuterGoomba(sx + 100, canvas.height - TILE_SIZE - 40));
+            entities.enemies.push(new CuterGoomba(sx + 150, canvas.height - TILE_SIZE - 40));
+            if(i===1) entities.blocks.push(new Block(sx, 300, 'question', 'iceflower'));
+            entities.blocks.push(new Block(sx+100, 200, 'platform')); entities.blocks[entities.blocks.length-1].width = 100;
+        }
+    } else if (levelNum === 4) { // 关卡4：黑夜模式，高台
+        gameState.levelLength = 3500;
+        for(let i=0; i<8; i++) {
+            let sx = 400 + i * 350;
+            let height = 150 + Math.random() * 150;
+            entities.blocks.push(new Block(sx, height, 'platform')); entities.blocks[entities.blocks.length-1].width = 120;
+            entities.enemies.push(new CuterGoomba(sx + 50, height - 50));
+            if (i===2) entities.blocks.push(new Block(sx + 40, height - 80, 'question', 'fireflower'));
+            if (i===5) entities.blocks.push(new Block(sx + 40, height - 80, 'question', 'iceflower'));
+        }
+    } else if (levelNum === 5) { // 关卡5：Boss战与彩蛋
+        gameState.levelLength = 1200; 
+        gameState.cameraX = 0; 
+        
+        boss = new BossBowser(600, canvas.height - TILE_SIZE - 80);
+        princess = new Princess(850, canvas.height - TILE_SIZE - 60);
+
+        entities.blocks.push(new Block(0, 0, 'platform')); // 左墙
+        entities.blocks[0].width = 10; entities.blocks[0].height = canvas.height;
+        
+        // 隐藏彩蛋方块 (放在公主后面天上)
+        entities.blocks.push(new Block(1000, 250, 'hidden'));
+    }
+}
+
+/**
+ * 碰撞检测
+ */
+function handleCollisions() {
+    let onGroundThisFrame = false;
+
+    // --- 1. 与方块的高级碰撞 ---
+    entities.blocks.forEach(b => {
+        if(b.dead || b.type === 'hidden') return;
+        
+        if (player.x < b.x + b.width && player.x + player.width > b.x &&
+            player.y < b.y + b.height && player.y + player.height > b.y) {
+            
+            let overlapLeft = (player.x + player.width) - b.x;
+            let overlapRight = (b.x + b.width) - player.x;
+            let overlapTop = (player.y + player.height) - b.y;
+            let overlapBottom = (b.y + b.height) - player.y;
+
+            let min = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+
+            if (min === overlapTop && player.vy >= 0) {
+                player.y = b.y - player.height; player.vy = 0; onGroundThisFrame = true;
+            } else if (min === overlapBottom && player.vy < 0) {
+                player.y = b.y + b.height; player.vy = 0; b.hit();
+            } else if (min === overlapLeft) player.x = b.x - player.width;
+            else if (min === overlapRight) player.x = b.x + b.width;
+        }
+        
+        // 检查隐藏方块的顶撞
+        if(b.type === 'hidden' && player.vy < 0 && 
+           player.x < b.x + b.width && player.x + player.width > b.x &&
+           player.y < b.y + b.height && player.y + player.height > b.y + b.height - 10) {
+            player.y = b.y + b.height; player.vy = 0; b.hit();
+        }
+    });
+
+    // --- 2. 弹射物碰撞 ---
+    entities.projectiles.forEach(p => {
+        if(p.dead) return;
+        
+        // 打墙
+        entities.blocks.forEach(b => {
+            if (!b.dead && b.type !== 'hidden' && p.x < b.x + b.width && p.x + p.width > b.x && p.y < b.y + b.height && p.y + p.height > b.y) {
+                p.dead = true; for(let i=0; i<3; i++) createParticle(p.x, p.y, p.type==='fire'?'#ff4500':'#00ffff');
+            }
+        });
+
+        // 打敌人
+        entities.enemies.forEach(e => {
+            if (e.dead || p.dead) return;
+            if (p.x < e.x + e.width && p.x + p.width > e.x && p.y < e.y + e.height && p.y + p.height > e.y) {
+                p.dead = true;
+                if (p.type === 'fire') {
+                    e.dead = true; playSound('stomp');
+                    for(let i=0; i<5; i++) createParticle(e.x+18, e.y+18, '#ff4500');
+                    gameState.score += 200;
+                } else if (p.type === 'ice') {
+                    e.frozen = true; e.freezeTimer = 300; // 冻住5秒
+                    if(e.vx !== 0) e.savedVx = e.vx; e.vx = 0;
+                    playSound('freeze');
+                }
+                uiElements.score.textContent = gameState.score;
+            }
+        });
+
+        // 打Boss
+        if (boss && boss.hp > 0 && p.x < boss.x + boss.width && p.x + p.width > boss.x && p.y < boss.y + boss.height && p.y + p.height > boss.y) {
+            p.dead = true;
+            if (p.type === 'fire') boss.takeDamage(0.5); // 10发火球打死Boss
+            else if (p.type === 'ice') boss.takeDamage(0.2); // 冰球伤害很低
+        }
+    });
+
+    // --- 3. 地面碰撞 ---
+    const floorY = canvas.height - TILE_SIZE;
+    if (player.y + player.height >= floorY) {
+        player.y = floorY - player.height; player.vy = 0; onGroundThisFrame = true;
+    }
+    player.onGround = onGroundThisFrame;
+
+    // --- 4. 敌人碰撞 ---
+    entities.enemies.forEach(e => {
+        if (e.dead || e.deadTimer > 0) return;
+        
+        if (player.x < e.x + e.width && player.x + player.width > e.x &&
+            player.y < e.y + e.height && player.y + player.height > e.y) {
+            
+            if (e.frozen) {
+                // 直接撞碎冰块
+                e.dead = true; e.deadTimer = 999; playSound('shatter');
+                for(let i=0; i<8; i++) createParticle(e.x+18, e.y+18, '#00ffff');
+                gameState.score += 300; uiElements.score.textContent = gameState.score;
+                // 给玩家一个微小的向上动力避免卡住
+                player.vy = -3; 
+            } else if (player.vy > 0 && player.y + player.height < e.y + e.height / 2 + 10) {
+                e.dead = true; player.vy = JUMP_FORCE / 1.5; 
+                gameState.score += 200; uiElements.score.textContent = gameState.score;
+                playSound('stomp');
+            } else {
+                player.takeDamage();
+            }
+        }
+    });
+
+    // --- 5. Boss碰撞 ---
+    if (boss && boss.hp > 0) {
+        if (player.x < boss.x + boss.width && player.x + player.width > boss.x &&
+            player.y < boss.y + boss.height && player.y + player.height > boss.y) {
+            if (player.vy > 0 && player.y + player.height < boss.y + 40) {
+                boss.takeDamage(1); player.vy = JUMP_FORCE; 
+            } else {
+                player.takeDamage();
+            }
+        }
+    }
+
+    // --- 6. 物品收集 ---
+    entities.items.forEach(i => {
+        if(i.active && player.x < i.x + i.width && player.x + player.width > i.x &&
+           player.y < i.y + i.height && player.y + player.height > i.y) {
+            i.active = false; player.upgrade(i.type);
+        }
+    });
+
+    entities.coins.forEach(c => {
+        if(!c.collected && player.x < c.x + c.width && player.x + player.width > c.x &&
+           player.y < c.y + c.height && player.y + player.height > c.y) {
+            c.collected = true; gameState.score += 50;
+            uiElements.score.textContent = gameState.score;
+            playSound('coin');
+        }
+    });
+
+    // --- 7. 通关判定 ---
+    if (boss && boss.hp <= 0 && princess) {
+        if (player.x + player.width > princess.x && player.x < princess.x + princess.width) {
+            winGame();
+        }
+    }
+}
+
+function drawBackground() {
+    let grad = ctx.createLinearGradient(0,0,0,canvas.height);
+    if(gameState.level === 5) {
+        grad.addColorStop(0, '#2C3E50'); grad.addColorStop(1, '#000000');
+    } else if (gameState.level === 4) {
+        grad.addColorStop(0, '#000022'); grad.addColorStop(1, '#111133');
+    } else {
+        grad.addColorStop(0, '#5C94FC'); grad.addColorStop(1, '#87CEEB');
+    }
+    ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width, canvas.height);
+
+    if (gameState.level !== 5 && gameState.level !== 4) {
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        clouds.forEach(c => {
+            c.x -= c.speed; let displayX = (c.x - gameState.cameraX * 0.2) % 2000;
+            if (displayX < -100) c.x += 2000;
+            ctx.beginPath(); ctx.arc(displayX, c.y, c.size, 0, Math.PI*2);
+            ctx.arc(displayX + c.size * 0.8, c.y - c.size * 0.2, c.size * 0.8, 0, Math.PI*2);
+            ctx.arc(displayX + c.size * 1.5, c.y, c.size * 0.7, 0, Math.PI*2); ctx.fill();
+        });
+    }
+
+    ctx.fillStyle = (gameState.level===5||gameState.level===4) ? '#4A4A4A' : '#8B4513';
+    ctx.fillRect(0, canvas.height - TILE_SIZE, canvas.width, TILE_SIZE);
+    ctx.fillStyle = (gameState.level===5||gameState.level===4) ? '#808080' : '#228B22';
+    ctx.fillRect(0, canvas.height - TILE_SIZE, canvas.width, 8);
+
+    // 第5关彩蛋指引标志
+    if (gameState.level === 5 && boss && boss.hp <= 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = "20px Arial";
+        ctx.fillText("Explore ->", 900 - gameState.cameraX, canvas.height - TILE_SIZE - 20);
+    }
+}
+
+function gameLoop() {
+    if (gameState.gameOver || gameState.gameWon) return;
+    gameState.time++;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    player.update();
+    entities.enemies.forEach(e => e.update());
+    entities.blocks.forEach(b => b.update());
+    entities.items.forEach(i => i.update());
+    entities.coins.forEach(c => c.update());
+    entities.projectiles.forEach(p => p.update());
+    
+    // 清理死亡子弹
+    entities.projectiles = entities.projectiles.filter(p => !p.dead);
+
+    if (boss) boss.update();
+
+    for (let i = entities.particles.length - 1; i >= 0; i--) {
+        let p = entities.particles[i];
+        p.x += p.vx; p.y += p.vy; p.life--;
+        if (p.life <= 0) entities.particles.splice(i, 1);
+    }
+    
+    // 摄像机控制: 第5关固定
+    if (gameState.level !== 5 && player.x > canvas.width / 2) {
+        gameState.cameraX = player.x - canvas.width / 2;
+    } else if (gameState.level === 5) {
+        // 让镜头能稍微往右看一点彩蛋区
+        if (player.x > 600) gameState.cameraX = player.x - 600;
+        if (gameState.cameraX < 0) gameState.cameraX = 0;
+        if (gameState.cameraX > 400) gameState.cameraX = 400;
+    }
+
+    handleCollisions();
+
+    // 过关检测
+    if (gameState.level !== 5 && player.x > gameState.levelLength) {
+        loadLevel(gameState.level + 1);
+        return requestAnimationFrame(gameLoop);
+    }
+
+    // --- 渲染 ---
+    drawBackground();
+    
+    entities.blocks.forEach(b => b.draw());
+    entities.items.forEach(i => i.draw());
+    entities.coins.forEach(c => c.draw());
+    entities.enemies.forEach(e => e.draw());
+    entities.projectiles.forEach(p => p.draw());
+    
+    if (boss) boss.draw();
+    if (princess) princess.draw();
+
+    player.draw();
+
+    entities.particles.forEach(p => {
+        if (p.text) {
+            ctx.fillStyle = p.color; ctx.font = "bold 20px Arial";
+            ctx.fillText(p.text, p.x - gameState.cameraX, p.y);
+        } else {
+            ctx.fillStyle = p.color; ctx.fillRect(p.x - gameState.cameraX, p.y, 4, 4);
+        }
+    });
+
+    requestAnimationFrame(gameLoop);
+}
+
+function showMsg(title, sub) {
+    gameState.gameOver = true;
+    uiElements.msgText.textContent = title; uiElements.msgSub.textContent = sub;
+    uiElements.msgBtn.textContent = "重新开始"; uiElements.msgBox.style.display = "block";
+}
+
+function winGame() {
+    gameState.gameWon = true; playSound('win');
+    uiElements.msgText.textContent = "恭喜通关！";
+    uiElements.msgSub.textContent = `英雄救美成功！最终得分: ${gameState.score}`;
+    uiElements.msgBtn.textContent = "再玩一次"; uiElements.msgBox.style.display = "block";
+}
+
+function resetGame() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    gameState = { score: 0, lives: 3, level: 1, maxLevel: 5, gameOver: false, gameWon: false, cameraX: 0, time: 0 };
+    uiElements.score.textContent = "0"; uiElements.lives.textContent = "3";
+    uiElements.msgBox.style.display = "none";
+    
+    player = new Player(); loadLevel(1); requestAnimationFrame(gameLoop);
+}
+
+// 事件监听
+window.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+});
+window.addEventListener('keyup', e => keys[e.key] = false);
+
+// 启动
+player = new Player(); loadLevel(1); gameLoop();
+
+</script>
+</body>
+</html>

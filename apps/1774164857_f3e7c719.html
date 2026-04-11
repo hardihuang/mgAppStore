@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>士兵射击升级游戏</title>
+    <style>
+        * {margin: 0;padding: 0;box-sizing: border-box;}
+        body {overflow: hidden;background: #222;font-family: Arial, sans-serif;}
+        canvas {display: block;background: #333;}
+        #ui {position: absolute;top: 10px;left: 10px;color: white;font-size: 18px;}
+        #skillUI {position: absolute;bottom: 20px;left: 20px;color: white;font-size: 18px;background: rgba(0,0,0,0.7);padding: 10px 20px;border-radius: 10px;}
+        #weaponUI {position: absolute;bottom: 20px;left: 50%;transform: translateX(-50%);color: white;font-size: 18px;background: rgba(0,0,0,0.7);padding: 10px 20px;border-radius: 10px;}
+        #levelUpPanel {
+            position: absolute;top: 50%;left: 50%;transform: translate(-50%, -50%);
+            background: #111;border: 2px solid #fff;padding: 20px;border-radius: 10px;
+            color: white;display: none;
+        }
+        .attrBtn {
+            display: block;width: 200px;padding: 10px;margin: 10px 0;
+            background: #444;border: 1px solid #fff;color: white;
+            cursor: pointer;border-radius: 5px;font-size: 16px;
+        }
+        .attrBtn:hover {background: #666;}
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div>等级: <span id="level">1</span></div>
+        <div>属性点: <span id="point">0</span></div>
+        <div>血量: <span id="hp">100</span>/<span id="maxHp">100</span></div>
+        <div>经验: <span id="exp">0</span>/<span id="maxExp">100</span></div>
+    </div>
+    <div id="skillUI">
+        自爆技能(Q): <span id="bombStatus">就绪</span>
+    </div>
+    <div id="weaponUI">
+        当前武器: <span id="currentWeapon">突击步枪</span> | 弹药: 无限 | 切换: 1(步枪) 2(霰弹枪) 3(狙击枪)
+    </div>
+    <div id="levelUpPanel">
+        <h2>升级了！选择属性</h2>
+        <button class="attrBtn" onclick="upgradeAttr('damage')">攻击力 +2</button>
+        <button class="attrBtn" onclick="upgradeAttr('maxHp')">最大血量 +20</button>
+        <button class="attrBtn" onclick="upgradeAttr('speed')">移动速度 +0.3</button>
+        <button class="attrBtn" onclick="upgradeAttr('fireRate')">射击速度加快</button>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const ui = {
+            level: document.getElementById('level'),
+            point: document.getElementById('point'),
+            hp: document.getElementById('hp'),
+            maxHp: document.getElementById('maxHp'),
+            exp: document.getElementById('exp'),
+            maxExp: document.getElementById('maxExp'),
+            panel: document.getElementById('levelUpPanel'),
+            currentWeapon: document.getElementById('currentWeapon'),
+            bombStatus: document.getElementById('bombStatus')
+        };
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // 武器配置
+        const weaponConfigs = {
+            rifle: {
+                name: "突击步枪",
+                damage: 10,
+                fireRate: 150,
+                bulletSpeed: 10,
+                spread: 0.03,
+                unlockLevel: 1,
+                penetrate: false
+            },
+            shotgun: {
+                name: "霰弹枪",
+                damage: 6,
+                fireRate: 700,
+                bulletSpeed: 8,
+                spread: 0.22,
+                pellets: 8,
+                unlockLevel: 3,
+                penetrate: false
+            },
+            sniper: {
+                name: "狙击枪",
+                damage: 60,
+                fireRate: 1000,
+                bulletSpeed: 18,
+                spread: 0.005,
+                unlockLevel: 5,
+                penetrate: true
+            }
+        };
+
+        // 自爆技能配置
+        const bombSkill = {
+            cooldown: 10000,
+            currentCooldown: 0,
+            damage: 9999,
+            range: 350
+        };
+
+        // 玩家属性
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            width: 30,
+            height: 30,
+            speed: 3.5,
+            hp: 100,
+            maxHp: 100,
+            level: 1,
+            exp: 0,
+            maxExp: 100,
+            point: 0,
+            angle: 0,
+            currentWeaponType: 'rifle',
+            isMouseDown: false,
+            weapons: {
+                rifle: { lastFire: 0 },
+                shotgun: { lastFire: 0 },
+                sniper: { lastFire: 0 }
+            }
+        };
+
+        // 游戏对象数组
+        let bullets = [];
+        let enemies = [];
+        let explosions = [];
+        let keys = {};
+        let mouse = { x: 0, y: 0 };
+        let enemySpawnTimer = 0;
+        let enemySpawnInterval = 1200;
+        let lastTime = Date.now();
+
+        // 键盘监听
+        window.addEventListener('keydown', e => {
+            keys[e.key.toLowerCase()] = true;
+            if (e.key === '1') switchWeapon('rifle');
+            if (e.key === '2') switchWeapon('shotgun');
+            if (e.key === '3') switchWeapon('sniper');
+            if (e.key.toLowerCase() === 'q') triggerBomb();
+        });
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+        // 鼠标监听
+        window.addEventListener('mousemove', e => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+            player.angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+        });
+        window.addEventListener('mousedown', () => { player.isMouseDown = true; });
+        window.addEventListener('mouseup', () => { player.isMouseDown = false; });
+
+        // 武器切换
+        function switchWeapon(weaponType) {
+            if (weaponConfigs[weaponType].unlockLevel > player.level) {
+                alert(`${weaponConfigs[weaponType].name} 需要等级${weaponConfigs[weaponType].unlockLevel}解锁！`);
+                return;
+            }
+            player.currentWeaponType = weaponType;
+            ui.currentWeapon.textContent = weaponConfigs[weaponType].name;
+        }
+
+        // 触发自爆技能
+        function triggerBomb() {
+            if (bombSkill.currentCooldown > 0) return;
+            explosions.push({
+                x: player.x + player.width/2,
+                y: player.y + player.height/2,
+                maxRadius: bombSkill.range,
+                currentRadius: 0,
+                alpha: 1,
+                speed: 10
+            });
+            enemies.forEach((enemy, index) => {
+                const dx = enemy.x + enemy.w/2 - (player.x + player.width/2);
+                const dy = enemy.y + enemy.h/2 - (player.y + player.height/2);
+                const distance = Math.sqrt(dx*dx + dy*dy);
+                if (distance <= bombSkill.range) {
+                    enemy.hp -= bombSkill.damage;
+                    if (enemy.hp <= 0) {
+                        enemies.splice(index, 1);
+                        player.exp += 18 + player.level * 4;
+                        checkLevelUp();
+                    }
+                }
+            });
+            bombSkill.currentCooldown = bombSkill.cooldown;
+            updateSkillUI();
+        }
+
+        // 更新技能UI
+        function updateSkillUI() {
+            if (bombSkill.currentCooldown > 0) {
+                ui.bombStatus.textContent = `冷却中(${Math.ceil(bombSkill.currentCooldown/1000)}s)`;
+            } else {
+                ui.bombStatus.textContent = "就绪";
+            }
+        }
+
+        // 自动射击
+        function tryFire() {
+            if (!player.isMouseDown) return;
+            const now = Date.now();
+            const w = player.currentWeaponType;
+            const wp = player.weapons[w];
+            const cfg = weaponConfigs[w];
+            if (now - wp.lastFire < cfg.fireRate) return;
+
+            wp.lastFire = now;
+
+            if (w === 'shotgun') {
+                for (let i = 0; i < cfg.pellets; i++) {
+                    const a = player.angle + (Math.random() - 0.5) * cfg.spread;
+                    bullets.push({
+                        x: player.x + 15, y: player.y + 15, w: 5, h: 2,
+                        speed: cfg.bulletSpeed, angle: a, damage: cfg.damage,
+                        penetrate: cfg.penetrate
+                    });
+                }
+            } else {
+                const a = player.angle + (Math.random() - 0.5) * cfg.spread;
+                bullets.push({
+                    x: player.x + 15, y: player.y + 15, w: 8, h: 3,
+                    speed: cfg.bulletSpeed, angle: a, damage: cfg.damage,
+                    penetrate: cfg.penetrate
+                });
+            }
+        }
+
+        // 生成敌人
+        function spawnEnemy() {
+            const side = Math.floor(Math.random() * 4);
+            let x, y;
+            const size = 26;
+            const speed = 1.5 + player.level * 0.1;
+            const maxHp = 25 + player.level * 6;
+            if (side === 0) { x = Math.random() * canvas.width; y = -size; }
+            else if (side === 1) { x = canvas.width + size; y = Math.random() * canvas.height; }
+            else if (side === 2) { x = Math.random() * canvas.width; y = canvas.height + size; }
+            else { x = -size; y = Math.random() * canvas.height; }
+            enemies.push({ x, y, w: size, h: size, speed, hp: maxHp, maxHp, damage: 5 + player.level, showHp: 0 });
+        }
+
+        // 升级属性
+        function upgradeAttr(t) {
+            if (t === 'damage') {
+                weaponConfigs.rifle.damage += 3;
+                weaponConfigs.shotgun.damage += 1.5;
+                weaponConfigs.sniper.damage += 10;
+            }
+            if (t === 'maxHp') { player.maxHp += 25; player.hp = player.maxHp; }
+            if (t === 'speed') { player.speed += 0.3; }
+            if (t === 'fireRate') {
+                weaponConfigs.rifle.fireRate = Math.max(60, weaponConfigs.rifle.fireRate * 0.85);
+                weaponConfigs.shotgun.fireRate = Math.max(300, weaponConfigs.shotgun.fireRate * 0.9);
+                weaponConfigs.sniper.fireRate = Math.max(400, weaponConfigs.sniper.fireRate * 0.9);
+            }
+            player.point--;
+            updateUI();
+            if (player.point <= 0) ui.panel.style.display = 'none';
+        }
+
+        // 检查升级
+        function checkLevelUp() {
+            while (player.exp >= player.maxExp) {
+                player.exp -= player.maxExp;
+                player.level++;
+                player.point++;
+                player.maxExp = Math.floor(player.maxExp * 1.45);
+                ui.panel.style.display = 'block';
+                if (player.level === 3) alert("解锁霰弹枪！按2键切换");
+                if (player.level === 5) alert("解锁狙击枪！按3键切换，可穿透敌人");
+            }
+            updateUI();
+        }
+
+        // 更新基础UI
+        function updateUI() {
+            ui.level.textContent = player.level;
+            ui.point.textContent = player.point;
+            ui.hp.textContent = Math.max(0, Math.floor(player.hp));
+            ui.maxHp.textContent = player.maxHp;
+            ui.exp.textContent = Math.floor(player.exp);
+            ui.maxExp.textContent = player.maxExp;
+        }
+
+        // 碰撞检测
+        function hit(a, b) {
+            return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+        }
+
+        // 游戏主循环
+        function gameLoop() {
+            const now = Date.now();
+            const dt = Math.min(now - lastTime, 50);
+            lastTime = now;
+
+            ctx.fillStyle = '#2a2a2a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 玩家移动
+            const sp = player.speed * dt / 16;
+            if (keys['w']) player.y = Math.max(0, player.y - sp);
+            if (keys['s']) player.y = Math.min(canvas.height - 30, player.y + sp);
+            if (keys['a']) player.x = Math.max(0, player.x - sp);
+            if (keys['d']) player.x = Math.min(canvas.width - 30, player.x + sp);
+
+            // 自动射击
+            tryFire();
+
+            // 技能冷却更新
+            if (bombSkill.currentCooldown > 0) {
+                bombSkill.currentCooldown -= dt;
+                updateSkillUI();
+            }
+
+            // 刷怪
+            if (now - enemySpawnTimer > enemySpawnInterval) {
+                spawnEnemy();
+                enemySpawnTimer = now;
+                enemySpawnInterval = Math.max(400, enemySpawnInterval - 2);
+            }
+
+            // 子弹更新
+            bullets.forEach((b, i) => {
+                b.x += Math.cos(b.angle) * b.speed * dt / 16;
+                b.y += Math.sin(b.angle) * b.speed * dt / 16;
+                if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
+                    bullets.splice(i, 1);
+                    return;
+                }
+                ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
+                ctx.fillStyle = b.penetrate ? '#ffffff' : (b.w === 5 ? '#fa0' : '#ff0');
+                ctx.fillRect(-b.w/2, -b.h/2, b.w, b.h);
+                ctx.restore();
+            });
+
+            // 敌人更新
+            enemies.forEach((e, ei) => {
+                if (e.showHp > 0) e.showHp -= dt;
+                const a = Math.atan2(player.y - e.y, player.x - e.x);
+                e.x += Math.cos(a) * e.speed * dt / 16;
+                e.y += Math.sin(a) * e.speed * dt / 16;
+
+                // 绘制敌人
+                ctx.fillStyle = '#f33';
+                ctx.fillRect(e.x, e.y, e.w, e.h);
+
+                // 绘制敌人血条
+                if (e.showHp > 0) {
+                    const r = e.hp / e.maxHp;
+                    ctx.fillStyle = '#666'; ctx.fillRect(e.x - 3, e.y - 9, e.w + 6, 3);
+                    ctx.fillStyle = '#f00'; ctx.fillRect(e.x - 3, e.y - 9, (e.w + 6) * r, 3);
+                }
+
+                // 碰到敌人不再扣血
+                if (hit(e, player)) {
+                    // 无扣血逻辑，可自行添加击退等效果
+                }
+
+                // 子弹碰撞敌人
+                bullets.forEach((b, bi) => {
+                    if (hit(b, e)) {
+                        e.hp -= b.damage;
+                        e.showHp = 2500;
+                        if (!b.penetrate) {
+                            bullets.splice(bi, 1);
+                        }
+                        if (e.hp <= 0) {
+                            enemies.splice(ei, 1);
+                            player.exp += 18 + player.level * 4;
+                            checkLevelUp();
+                        }
+                    }
+                });
+            });
+
+            // 爆炸特效
+            explosions.forEach((exp, i) => {
+                exp.currentRadius += exp.speed * dt / 16;
+                exp.alpha -= 0.02 * dt / 16;
+                ctx.beginPath();
+                ctx.arc(exp.x, exp.y, exp.currentRadius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 80, 0, ${exp.alpha * 0.3})`;
+                ctx.fill();
+                ctx.strokeStyle = `rgba(255, 200, 0, ${exp.alpha})`;
+                ctx.lineWidth = 5;
+                ctx.stroke();
+                if (exp.alpha <= 0 || exp.currentRadius >= exp.maxRadius) {
+                    explosions.splice(i, 1);
+                }
+            });
+
+            // 绘制玩家
+            ctx.save(); ctx.translate(player.x + 15, player.y + 15); ctx.rotate(player.angle);
+            ctx.fillStyle = player.currentWeaponType === 'rifle' ? '#37f' : (player.currentWeaponType === 'shotgun' ? '#f70' : '#fff');
+            ctx.fillRect(-15, -15, 30, 30);
+            ctx.fillStyle = '#f30'; ctx.fillRect(15, -2, player.currentWeaponType === 'sniper' ? 20 : 12, 4);
+            ctx.restore();
+
+            // 死亡判定（修改提示为游戏失败）
+            if (player.hp <= 0) {
+                alert(`游戏失败！你的最终等级：${player.level}`);
+                location.reload();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 启动游戏
+        gameLoop();
+        updateUI();
+
+        // 窗口大小适配
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>

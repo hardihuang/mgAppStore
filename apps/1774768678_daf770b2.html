@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚔️ 格斗冒险 - 横版闯关</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            border: 4px solid #e94560;
+            border-radius: 8px;
+            box-shadow: 0 0 40px rgba(233, 69, 96, 0.6);
+        }
+        #game-canvas {
+            display: block;
+            background: linear-gradient(180deg, #1a1a3e 0%, #2a2a5e 100%);
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            pointer-events: none;
+        }
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .player-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .health-bar {
+            width: 200px;
+            height: 25px;
+            background: #333;
+            border: 3px solid #fff;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .health-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00cc6a);
+            transition: width 0.3s ease;
+        }
+        .player-name {
+            color: #fff;
+            font-size: 16px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+        .level-info, .score {
+            color: #fff;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+        .score { color: #ffd700; }
+        
+        #start-screen, #game-over-screen, #level-complete, #victory-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.95);
+            padding: 40px 60px;
+            border-radius: 12px;
+            border: 3px solid #e94560;
+            text-align: center;
+            pointer-events: auto;
+            z-index: 100;
+        }
+        h1 {
+            color: #e94560;
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+        p {
+            color: #fff;
+            font-size: 16px;
+            margin-bottom: 30px;
+            line-height: 1.8;
+        }
+        .btn {
+            background: linear-gradient(135deg, #e94560, #c23a51);
+            color: #fff;
+            border: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 10px;
+        }
+        .btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.6);
+        }
+        .controls {
+            color: rgba(255,255,255,0.7);
+            font-size: 14px;
+            margin-top: 20px;
+            line-height: 2;
+        }
+        .key {
+            background: #333;
+            padding: 3px 8px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            font-weight: bold;
+            color: #fff;
+        }
+        #game-over-screen, #level-complete, #victory-screen { display: none; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas" width="1024" height="576"></canvas>
+        
+        <div id="ui-overlay">
+            <div class="top-bar">
+                <div class="player-info">
+                    <span class="player-name">🎮 玩家</span>
+                    <div class="health-bar">
+                        <div class="health-fill" id="player-health" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="level-info">关卡：<span id="level-display">1</span>/5</div>
+                <div class="score">得分：<span id="score-display">0</span></div>
+            </div>
+        </div>
+        
+        <div id="start-screen">
+            <h1>⚔️ 格斗冒险</h1>
+            <p>穿越 5 个关卡，击败所有敌人和 BOSS！<br>横版动作闯关游戏</p>
+            <button class="btn" onclick="startGame()">🎮 开始游戏</button>
+            <div class="controls">
+                <p><span class="key">A</span> <span class="key">D</span> 左右移动 | <span class="key">W</span> 跳跃</p>
+                <p><span class="key">J</span> 攻击 | <span class="key">K</span> 技能</p>
+                <p><span class="key">L</span> 必杀技 (需要能量)</p>
+            </div>
+        </div>
+        
+        <div id="game-over-screen">
+            <h1>💀 游戏结束</h1>
+            <p>最终得分：<span id="final-score">0</span></p>
+            <button class="btn" onclick="restartGame()">🔄 重新开始</button>
+        </div>
+        
+        <div id="level-complete">
+            <h1>✅ 关卡完成!</h1>
+            <p>准备进入下一关...</p>
+            <button class="btn" onclick="nextLevel()">➡️ 继续</button>
+        </div>
+        
+        <div id="victory-screen">
+            <h1>🏆 恭喜通关!</h1>
+            <p>你成功击败了所有敌人！<br>最终得分：<span id="victory-score">0</span></p>
+            <button class="btn" onclick="restartGame()">🔄 再玩一次</button>
+        </div>
+    </div>
+
+    <script>
+        // ⚔️ 格斗冒险 - 横版闯关游戏
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // 游戏常量
+        const GRAVITY = 0.8, GROUND_Y = 480, PLAYER_WIDTH = 50, PLAYER_HEIGHT = 80, ENEMY_WIDTH = 50, ENEMY_HEIGHT = 80;
+
+        // 游戏状态
+        let gameState = 'start', currentLevel = 1, score = 0, cameraX = 0, levelLength = 3000;
+
+        // 按键状态
+        const keys = { a: false, d: false, w: false, s: false, j: false, k: false, l: false };
+
+        // 玩家类
+        class Player {
+            constructor(x, y) {
+                this.position = { x, y };
+                this.velocity = { x: 0, y: 0 };
+                this.width = PLAYER_WIDTH;
+                this.height = PLAYER_HEIGHT;
+                this.color = '#4facfe';
+                this.health = 100;
+                this.maxHealth = 100;
+                this.energy = 0;
+                this.maxEnergy = 100;
+                this.isAttacking = false;
+                this.attackCooldown = false;
+                this.skillCooldown = false;
+                this.ultimateCooldown = false;
+                this.facing = 1;
+                this.isDead = false;
+                this.invincible = false;
+                this.invincibleTimer = 0;
+                this.attackBox = { x: 0, y: 0, width: 80, height: 50 };
+            }
+
+            draw() {
+                const screenX = this.position.x - cameraX;
+                if (this.invincible && Math.floor(Date.now() / 100) % 2 === 0) ctx.globalAlpha = 0.5;
+
+                ctx.fillStyle = this.color;
+                ctx.fillRect(screenX, this.position.y, this.width, this.height);
+
+                ctx.fillStyle = '#ffd700';
+                ctx.fillRect(screenX + 10, this.position.y - 20, 30, 25);
+
+                ctx.fillStyle = '#fff';
+                const eyeX = this.facing === 1 ? screenX + 25 : screenX + 15;
+                ctx.fillRect(eyeX, this.position.y - 15, 8, 8);
+
+                if (this.isAttacking) {
+                    ctx.fillStyle = '#fff';
+                    const attackX = this.facing === 1 ? screenX + this.width : screenX - 60;
+                    ctx.fillRect(attackX, this.position.y + 30, 60, 15);
+                }
+
+                if (this.energy > 0) {
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(screenX, this.position.y - 35, this.width, 6);
+                    ctx.fillStyle = '#00ffff';
+                    ctx.fillRect(screenX, this.position.y - 35, this.width * (this.energy / this.maxEnergy), 6);
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            update() {
+                if (this.isDead) return;
+                this.velocity.y += GRAVITY;
+                this.position.x += this.velocity.x;
+                this.position.y += this.velocity.y;
+
+                if (this.position.y + this.height >= GROUND_Y) {
+                    this.velocity.y = 0;
+                    this.position.y = GROUND_Y - this.height;
+                }
+
+                if (this.position.x < 0) this.position.x = 0;
+                if (this.position.x + this.width > levelLength) this.position.x = levelLength - this.width;
+
+                this.attackBox.x = this.facing === 1 ? this.position.x + this.width : this.position.x - this.attackBox.width;
+                this.attackBox.y = this.position.y + 20;
+
+                if (this.invincible) {
+                    this.invincibleTimer--;
+                    if (this.invincibleTimer <= 0) this.invincible = false;
+                }
+
+                if (this.energy < this.maxEnergy && !this.isAttacking) this.energy += 0.1;
+                this.draw();
+            }
+
+            move(direction) {
+                if (this.isDead) return;
+                this.velocity.x = direction * 6;
+                this.facing = direction;
+            }
+
+            stop() { this.velocity.x = 0; }
+
+            jump() {
+                if (this.position.y + this.height >= GROUND_Y && !this.isDead) this.velocity.y = -18;
+            }
+
+            attack() {
+                if (this.attackCooldown || this.isDead) return;
+                this.isAttacking = true;
+                this.attackCooldown = true;
+                setTimeout(() => { this.isAttacking = false; }, 150);
+                setTimeout(() => { this.attackCooldown = false; }, 400);
+                checkAttackHit(this, this.attackBox, 15);
+            }
+
+            skill() {
+                if (this.skillCooldown || this.isDead) return;
+                this.velocity.x = this.facing * 15;
+                this.isAttacking = true;
+                this.skillCooldown = true;
+                setTimeout(() => { this.isAttacking = false; }, 200);
+                setTimeout(() => { this.skillCooldown = false; }, 1500);
+                setTimeout(() => {
+                    checkAttackHit(this, {
+                        x: this.facing === 1 ? this.position.x + this.width : this.position.x - 150,
+                        y: this.position.y,
+                        width: 150,
+                        height: this.height
+                    }, 25);
+                }, 100);
+            }
+
+            ultimate() {
+                if (this.energy < 50 || this.ultimateCooldown || this.isDead) return;
+                this.energy -= 50;
+                this.ultimateCooldown = true;
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                enemies.forEach(enemy => {
+                    const dist = Math.abs(enemy.position.x - this.position.x);
+                    if (dist < 500) enemy.takeDamage(50);
+                });
+                setTimeout(() => { this.ultimateCooldown = false; }, 3000);
+            }
+
+            takeDamage(amount) {
+                if (this.invincible || this.isDead) return;
+                this.health -= amount;
+                this.invincible = true;
+                this.invincibleTimer = 60;
+                if (this.health <= 0) {
+                    this.health = 0;
+                    this.isDead = true;
+                    gameOver();
+                }
+                updateUI();
+            }
+
+            gainEnergy(amount) {
+                this.energy = Math.min(this.energy + amount, this.maxEnergy);
+            }
+        }
+
+        // 敌人类
+        class Enemy {
+            constructor(x, y, type = 'normal') {
+                this.position = { x, y };
+                this.velocity = { x: 0, y: 0 };
+                this.width = ENEMY_WIDTH;
+                this.height = ENEMY_HEIGHT;
+                this.type = type;
+                this.health = type === 'boss' ? 200 : (type === 'elite' ? 60 : 30);
+                this.maxHealth = this.health;
+                this.damage = type === 'boss' ? 30 : (type === 'elite' ? 15 : 10);
+                this.color = type === 'boss' ? '#ff0000' : (type === 'elite' ? '#ff6600' : '#ff4444');
+                this.isAttacking = false;
+                this.attackCooldown = false;
+                this.isDead = false;
+                this.facing = -1;
+                this.attackRange = type === 'boss' ? 100 : 60;
+                this.speed = type === 'boss' ? 3 : (type === 'elite' ? 4 : 2);
+                this.score = type === 'boss' ? 500 : (type === 'elite' ? 200 : 100);
+            }
+
+            draw() {
+                const screenX = this.position.x - cameraX;
+                if (screenX < -100 || screenX > canvas.width + 100) return;
+
+                ctx.fillStyle = this.color;
+                ctx.fillRect(screenX, this.position.y, this.width, this.height);
+
+                ctx.fillStyle = '#333';
+                ctx.fillRect(screenX + 10, this.position.y - 20, 30, 25);
+
+                ctx.fillStyle = '#ff0';
+                const eyeX = this.facing === 1 ? screenX + 25 : screenX + 15;
+                ctx.fillRect(eyeX, this.position.y - 15, 8, 8);
+
+                const healthBarWidth = 60;
+                const healthPercent = this.health / this.maxHealth;
+                ctx.fillStyle = '#333';
+                ctx.fillRect(screenX, this.position.y - 35, healthBarWidth, 6);
+                ctx.fillStyle = healthPercent > 0.5 ? '#0f0' : (healthPercent > 0.25 ? '#ff0' : '#f00');
+                ctx.fillRect(screenX, this.position.y - 35, healthBarWidth * healthPercent, 6);
+
+                if (this.isAttacking) {
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                    const attackX = this.facing === 1 ? screenX + this.width : screenX - 50;
+                    ctx.fillRect(attackX, this.position.y + 20, 50, 30);
+                }
+            }
+
+            update() {
+                if (this.isDead) return;
+                const screenX = this.position.x - cameraX;
+                if (screenX < -200 || screenX > canvas.width + 200) {
+                    this.draw();
+                    return;
+                }
+
+                this.velocity.y += GRAVITY;
+                this.position.y += this.velocity.y;
+                if (this.position.y + this.height >= GROUND_Y) {
+                    this.velocity.y = 0;
+                    this.position.y = GROUND_Y - this.height;
+                }
+
+                if (!player.isDead) {
+                    const dist = player.position.x - this.position.x;
+                    this.facing = dist > 0 ? 1 : -1;
+                    if (Math.abs(dist) > this.attackRange) {
+                        this.velocity.x = this.facing * this.speed;
+                    } else if (Math.abs(dist) <= this.attackRange && !this.attackCooldown) {
+                        this.attack();
+                    } else {
+                        this.velocity.x = 0;
+                    }
+                }
+                this.position.x += this.velocity.x;
+                this.draw();
+            }
+
+            attack() {
+                if (this.attackCooldown || this.isDead) return;
+                this.isAttacking = true;
+                this.attackCooldown = true;
+                setTimeout(() => { this.isAttacking = false; }, 200);
+                setTimeout(() => { this.attackCooldown = false; }, 1500);
+
+                const attackBox = {
+                    x: this.facing === 1 ? this.position.x + this.width : this.position.x - 50,
+                    y: this.position.y,
+                    width: 50,
+                    height: this.height
+                };
+
+                if (rectangularCollision({ rectangle1: attackBox, rectangle2: player })) {
+                    player.takeDamage(this.damage);
+                }
+            }
+
+            takeDamage(amount) {
+                if (this.isDead) return;
+                this.health -= amount;
+                this.velocity.x = player.facing * 10;
+                this.velocity.y = -5;
+                if (this.health <= 0) {
+                    this.health = 0;
+                    this.isDead = true;
+                    score += this.score;
+                    player.gainEnergy(10);
+                    updateUI();
+                    checkLevelComplete();
+                }
+            }
+        }
+
+        // 道具类
+        class Item {
+            constructor(x, y, type) {
+                this.position = { x, y };
+                this.width = 30;
+                this.height = 30;
+                this.type = type;
+                this.color = type === 'health' ? '#00ff00' : '#00ffff';
+                this.floatOffset = 0;
+            }
+
+            draw() {
+                const screenX = this.position.x - cameraX;
+                if (screenX < -50 || screenX > canvas.width + 50) return;
+                this.floatOffset = Math.sin(Date.now() / 200) * 5;
+                ctx.fillStyle = this.color;
+                ctx.fillRect(screenX, this.position.y + this.floatOffset, this.width, this.height);
+                ctx.fillStyle = '#fff';
+                ctx.font = '20px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(this.type === 'health' ? '+' : '⚡', screenX + this.width / 2, this.position.y + this.floatOffset + 22);
+            }
+
+            checkCollision(player) {
+                const screenX = this.position.x - cameraX;
+                return (
+                    player.position.x < screenX + this.width &&
+                    player.position.x + player.width > screenX &&
+                    player.position.y < this.position.y + this.height + this.floatOffset &&
+                    player.position.y + player.height > this.position.y + this.floatOffset
+                );
+            }
+
+            apply() {
+                if (this.type === 'health') player.health = Math.min(player.health + 30, player.maxHealth);
+                else if (this.type === 'energy') player.energy = Math.min(player.energy + 30, player.maxEnergy);
+                updateUI();
+            }
+        }
+
+        // 全局变量
+        let player, enemies = [], items = [];
+
+        // 工具函数
+        function rectangularCollision({ rectangle1, rectangle2 }) {
+            return (
+                rectangle1.x + rectangle1.width >= rectangle2.position.x &&
+                rectangle1.x <= rectangle2.position.x + rectangle2.width &&
+                rectangle1.y + rectangle1.height >= rectangle2.position.y &&
+                rectangle1.y <= rectangle2.position.y + rectangle2.height
+            );
+        }
+
+        function checkAttackHit(attacker, attackBox, damage) {
+            enemies.forEach(enemy => {
+                if (!enemy.isDead) {
+                    const collision = (
+                        attackBox.x + attackBox.width >= enemy.position.x &&
+                        attackBox.x <= enemy.position.x + enemy.width &&
+                        attackBox.y + attackBox.height >= enemy.position.y &&
+                        attackBox.y <= enemy.position.y + enemy.height
+                    );
+                    if (collision) {
+                        enemy.takeDamage(damage);
+                        attacker.gainEnergy(5);
+                        updateUI();
+                    }
+                }
+            });
+        }
+
+        function updateUI() {
+            document.getElementById('player-health').style.width = player.health + '%';
+            document.getElementById('score-display').textContent = score;
+            document.getElementById('level-display').textContent = currentLevel;
+        }
+
+        function loadLevel(level) {
+            enemies = [];
+            items = [];
+            cameraX = 0;
+            levelLength = 2000 + level * 500;
+            player.position = { x: 100, y: GROUND_Y - player.height };
+            player.velocity = { x: 0, y: 0 };
+            player.isDead = false;
+            player.invincible = true;
+            player.invincibleTimer = 120;
+
+            const enemyCount = 3 + level * 2;
+            for (let i = 0; i < enemyCount; i++) {
+                const x = 400 + i * 300 + Math.random() * 200;
+                const type = i === enemyCount - 1 ? 'elite' : 'normal';
+                enemies.push(new Enemy(x, GROUND_Y - ENEMY_HEIGHT, type));
+            }
+            enemies.push(new Enemy(levelLength - 300, GROUND_Y - ENEMY_HEIGHT, 'boss'));
+
+            for (let i = 0; i < 3; i++) {
+                const x = 300 + i * 600;
+                const type = i % 2 === 0 ? 'health' : 'energy';
+                items.push(new Item(x, GROUND_Y - 120, type));
+            }
+            updateUI();
+        }
+
+        function checkLevelComplete() {
+            if (enemies.filter(e => !e.isDead).length === 0) {
+                gameState = 'levelcomplete';
+                document.getElementById('level-complete').style.display = 'block';
+            }
+        }
+
+        function startGame() {
+            document.getElementById('start-screen').style.display = 'none';
+            gameState = 'playing';
+            player = new Player(100, GROUND_Y - PLAYER_HEIGHT);
+            currentLevel = 1;
+            score = 0;
+            loadLevel(currentLevel);
+            animate();
+        }
+
+        function nextLevel() {
+            document.getElementById('level-complete').style.display = 'none';
+            currentLevel++;
+            if (currentLevel > 5) {
+                document.getElementById('victory-score').textContent = score;
+                document.getElementById('victory-screen').style.display = 'block';
+                gameState = 'victory';
+            } else {
+                loadLevel(currentLevel);
+                gameState = 'playing';
+            }
+        }
+
+        function gameOver() {
+            gameState = 'gameover';
+            document.getElementById('final-score').textContent = score;
+            document.getElementById('game-over-screen').style.display = 'block';
+        }
+
+        function restartGame() {
+            document.getElementById('game-over-screen').style.display = 'none';
+            document.getElementById('victory-screen').style.display = 'none';
+            startGame();
+        }
+
+        function drawBackground() {
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#1a1a3e');
+            gradient.addColorStop(1, '#2a2a5e');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = 'rgba(50, 50, 100, 0.5)';
+            for (let i = 0; i < 10; i++) {
+                const x = i * 300 - (cameraX * 0.3) % 300;
+                ctx.beginPath();
+                ctx.moveTo(x, GROUND_Y);
+                ctx.lineTo(x + 150, GROUND_Y - 150);
+                ctx.lineTo(x + 300, GROUND_Y);
+                ctx.fill();
+            }
+
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+            ctx.fillStyle = '#e94560';
+            ctx.fillRect(0, GROUND_Y, canvas.width, 4);
+        }
+
+        function animate() {
+            if (gameState !== 'playing') {
+                if (gameState === 'playing') requestAnimationFrame(animate);
+                return;
+            }
+
+            requestAnimationFrame(animate);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBackground();
+
+            const targetCameraX = player.position.x - canvas.width / 3;
+            cameraX = Math.max(0, Math.min(targetCameraX, levelLength - canvas.width));
+
+            items.forEach((item, index) => {
+                item.draw();
+                if (item.checkCollision(player)) {
+                    item.apply();
+                    items.splice(index, 1);
+                }
+            });
+
+            enemies.forEach(enemy => enemy.update());
+            player.update();
+
+            player.stop();
+            if (keys.a) player.move(-1);
+            if (keys.d) player.move(1);
+        }
+
+        // 事件监听
+        window.addEventListener('keydown', (event) => {
+            const key = event.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) {
+                keys[key] = true;
+                if (gameState === 'playing') {
+                    if (key === 'w') player.jump();
+                    if (key === 'j') player.attack();
+                    if (key === 'k') player.skill();
+                    if (key === 'l') player.ultimate();
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (event) => {
+            const key = event.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) keys[key] = false;
+        });
+
+        console.log('⚔️ 格斗冒险 - 横版闯关游戏 已加载!');
+        console.log('控制：WASD 移动，J 攻击，K 技能，L 必杀技');
+    </script>
+</body>
+</html>

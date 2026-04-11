@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>萌宠大作战：超级连连看</title>
+    <style>
+        :root {
+            --bg: #fffaf0;
+            --primary: #e67e22;
+            --text: #4a3728;
+            --poodle: #c4a484;
+            --success: #27ae60;
+            --error: #e74c3c;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        #ui-top {
+            width: 100%;
+            background: white;
+            padding: 5px 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 50;
+        }
+
+        h1 { font-size: 1.2rem; margin: 2px 0; color: #d35400; font-weight: bold; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+            width: 95%;
+            max-width: 600px;
+        }
+
+        .stat-item {
+            background: #fef5ed;
+            padding: 3px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.75rem;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        .stat-item span { color: var(--primary); display: block; font-size: 0.9rem; }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin: 4px 0;
+        }
+
+        .btn-tool {
+            padding: 4px 10px;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            background: white;
+            font-size: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+        }
+
+        .btn-tool:active { transform: scale(0.9); }
+
+        .btn-tool span {
+            background: var(--primary);
+            color: white;
+            min-width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            font-size: 0.6rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-area {
+            position: relative;
+            margin: 2px auto;
+            padding: 4px;
+            background: #fdf2e9;
+            border-radius: 8px;
+            border: 2px solid #edbb99;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            width: 98vw;
+        }
+
+        /* 专门用于包裹网格和画布，确保精准对齐 */
+        #board-wrapper {
+            position: relative;
+            margin: auto;
+        }
+
+        #board {
+            display: grid;
+            gap: 1px;
+            margin: auto;
+        }
+
+        .cell {
+            aspect-ratio: 1/1;
+            background: white;
+            border-radius: 3px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 1px 0 #ccc;
+            position: relative;
+            transition: transform 0.1s, background 0.1s, opacity 0.3s;
+        }
+
+        /* 选中动效 */
+        .cell.selected {
+            background: #ffeaa7;
+            box-shadow: 0 0 8px var(--primary);
+            transform: scale(1.1);
+            z-index: 5;
+            animation: pulse-select 0.6s infinite ease-in-out;
+        }
+
+        @keyframes pulse-select {
+            0%, 100% { transform: scale(1.1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* 错误震动 */
+        .cell.shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+            border: 1px solid var(--error);
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
+            40%, 60% { transform: translate3d(3px, 0, 0); }
+        }
+
+        .cell.matched { animation: fadeOut 0.25s forwards; pointer-events: none; }
+        .cell.hint { animation: pulse-hint 0.6s infinite; background: #dff9fb; border: 1px solid #3498db; }
+
+        @keyframes fadeOut { to { opacity: 0; transform: scale(0.2); visibility: hidden; } }
+        @keyframes pulse-hint { 50% { transform: scale(1.15); opacity: 0.7; } }
+
+        #line-canvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10; }
+
+        /* 漂浮反馈容器 */
+        #feedback-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 60;
+        }
+
+        .floating-score {
+            position: absolute;
+            color: #f1c40f;
+            font-weight: bold;
+            font-size: 1.2rem;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            animation: float-score 0.8s ease-out forwards;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        @keyframes float-score {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-40px); opacity: 0; }
+        }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .btn-main {
+            padding: 10px 35px;
+            font-size: 1.3rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            margin-top: 15px;
+            box-shadow: 0 4px 0 #d35400;
+            cursor: pointer;
+        }
+
+        .hidden { display: none !important; }
+        .poodle-icon { width: 92%; height: 92%; }
+    </style>
+</head>
+<body>
+
+<div id="ui-top">
+    <h1>🐾 萌宠大作战：超级连连看 🐾</h1>
+    <div class="stats-grid">
+        <div class="stat-item" id="level-container">关卡进度 <span id="val-level">1</span></div>
+        <div class="stat-item" id="score-container">战力得分 <span id="val-score">0</span></div>
+        <div class="stat-item" id="timer-container">剩余时长 <span id="val-timer">60</span></div>
+    </div>
+    <div class="toolbar">
+        <button class="btn-tool" onclick="useHint()">💡 闪电提示 <span id="val-hints">3</span></button>
+        <button class="btn-tool" onclick="shuffle()">🔄 空间重组 <span id="val-shuffles">2</span></button>
+    </div>
+</div>
+
+<div id="game-area">
+    <div id="board-wrapper">
+        <div id="board"></div>
+        <canvas id="line-canvas"></canvas>
+        <div id="feedback-layer"></div>
+    </div>
+</div>
+
+<div id="overlay" class="overlay">
+    <h2 id="over-title">Ready Go!</h2>
+    <p id="over-desc">时间充足，连接所有萌宠，成为大师吧！</p>
+    <button class="btn-main" onclick="handleStart()">开始作战</button>
+</div>
+
+<script>
+    // --- 原生音效引擎 ---
+    const AudioEngine = {
+        ctx: null,
+        init() {
+            if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        },
+        play(freq, type, duration, vol = 0.1) {
+            this.init();
+            if(this.ctx.state === 'suspended') this.ctx.resume();
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+            gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start();
+            osc.stop(this.ctx.currentTime + duration);
+        },
+        click() { this.play(600, 'sine', 0.1); },
+        match() { 
+            this.play(400, 'triangle', 0.3, 0.2);
+            setTimeout(() => this.play(800, 'triangle', 0.3, 0.2), 50);
+        },
+        error() { this.play(150, 'sawtooth', 0.3, 0.15); },
+        levelUp() {
+            [440, 554, 659, 880].forEach((f, i) => {
+                setTimeout(() => this.play(f, 'sine', 0.4, 0.2), i * 100);
+            });
+        }
+    };
+
+    // --- 游戏逻辑 ---
+    const ANIMALS = ['🐱', '🐰', '🐼', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐣', '🐧', '🦊', '🐨', '🦒', '🦓', '🦔', '🐙', '🐢', '🦄', '🐝', '🦋', '🦖', '🐘', '🦏', '🐪', '🐿️', '🦜', '🦩', '🦥', '🦘', '🐳', '🦀', '🦂', '🦉', '🦌', '🐡', '🐆', '🐈', '🦢', '🦃'];
+    const POODLE = `<svg class="poodle-icon" viewBox="0 0 100 100"><circle cx="50" cy="57" r="28" fill="#c4a484"/><circle cx="50" cy="38" r="20" fill="#c4a484"/><circle cx="33" cy="35" r="9" fill="#c4a484"/><circle cx="67" cy="35" r="9" fill="#c4a484"/><circle cx="43" cy="36" r="2.5" fill="#333"/><circle cx="57" cy="36" r="2.5" fill="#333"/><path d="M47 43 Q50 46 53 43" stroke="#333" stroke-width="2" fill="none"/></svg>`;
+
+    let state = {
+        level: 1, score: 0, timeLeft: 0, hints: 3, shuffles: 2,
+        rows: 0, cols: 0, board: [], selected: null, isLock: false, timer: null,
+        combo: 0, lastMatch: 0, cellSize: 0
+    };
+
+    function getCfg(lv) {
+        const configs = [[4, 8], [6, 8], [8, 8], [8, 10], [8, 12], [10, 11], [10, 12], [10, 14], [10, 16], [10, 16]];
+        const [r, c] = configs[Math.min(lv - 1, 9)];
+        return { r, c, t: lv * 60 }; // 每关增加60秒
+    }
+
+    function handleStart() {
+        AudioEngine.init();
+        initGame();
+    }
+
+    function initGame() {
+        const cfg = getCfg(state.level);
+        state.rows = cfg.r; state.cols = cfg.c; state.timeLeft = cfg.t;
+        state.hints = 5 + Math.floor(state.level / 2);
+        state.shuffles = 3 + Math.floor(state.level / 3);
+        state.selected = null; state.isLock = false;
+        
+        document.getElementById('overlay').classList.add('hidden');
+        createBoard();
+        updateUI();
+        startTimer();
+        autoCheck();
+    }
+
+    function createBoard() {
+        const total = state.rows * state.cols;
+        let items = [];
+        const poodleGroups = state.level >= 5 ? 5 : 3; 
+        for(let i=0; i < poodleGroups; i++) items.push('P','P');
+        const pool = [...ANIMALS].sort(() => Math.random() - 0.5);
+        let poolIdx = 0;
+        while(items.length < total) {
+            const a = pool[poolIdx % pool.length];
+            items.push(a, a);
+            poolIdx++;
+        }
+        items.sort(() => Math.random() - 0.5);
+
+        state.board = [];
+        const bEl = document.getElementById('board');
+        bEl.innerHTML = '';
+        bEl.style.gridTemplateColumns = `repeat(${state.cols}, 1fr)`;
+        
+        const availW = window.innerWidth - 10;
+        const availH = document.getElementById('game-area').offsetHeight - 10;
+        const sizeW = Math.floor(availW / state.cols);
+        const sizeH = Math.floor(availH / state.rows);
+        const size = Math.min(55, sizeW, sizeH); 
+        state.cellSize = size; // 保存用于精准计算连线坐标
+        
+        for(let r=0; r<state.rows; r++) {
+            state.board[r] = [];
+            for(let c=0; c<state.cols; c++) {
+                const type = items.pop();
+                const cell = { r, c, type, matched: false };
+                state.board[r][c] = cell;
+                const div = document.createElement('div');
+                div.className = 'cell';
+                div.id = `c-${r}-${c}`;
+                // 因为gap是1px，为了总宽度刚好是size的倍数，单个方块设为size-1
+                div.style.width = (size - 1) + 'px';
+                div.style.height = (size - 1) + 'px';
+                div.style.fontSize = (size * 0.75) + 'px';
+                div.innerHTML = type === 'P' ? POODLE : type;
+                div.onclick = () => handleTap(r, c);
+                bEl.appendChild(div);
+            }
+        }
+        syncCanvas();
+    }
+
+    function handleTap(r, c) {
+        if (state.isLock) return;
+        const cell = state.board[r][c];
+        if (cell.matched) return;
+
+        const el = document.getElementById(`c-${r}-${c}`);
+        if (!state.selected) {
+            state.selected = cell;
+            el.classList.add('selected');
+            AudioEngine.click();
+        } else {
+            const prev = state.selected;
+            if (prev === cell) {
+                el.classList.remove('selected');
+                state.selected = null;
+            } else if (prev.type === cell.type) {
+                const path = findPath(prev, cell);
+                if (path) {
+                    doMatch(prev, cell, path);
+                } else {
+                    errorEffect(el, prev);
+                }
+            } else {
+                errorEffect(el, prev);
+            }
+        }
+    }
+
+    function errorEffect(el, prev) {
+        const prevEl = document.getElementById(`c-${prev.r}-${prev.c}`);
+        el.classList.add('shake');
+        prevEl.classList.add('shake');
+        AudioEngine.error();
+        setTimeout(() => {
+            el.classList.remove('shake', 'selected');
+            prevEl.classList.remove('shake', 'selected');
+        }, 400);
+        state.selected = null;
+    }
+
+    function doMatch(c1, c2, path) {
+        state.isLock = true;
+        drawPath(path);
+        
+        // 连击判定
+        const now = Date.now();
+        if (now - state.lastMatch < 2000) state.combo++;
+        else state.combo = 1;
+        state.lastMatch = now;
+
+        const baseScore = 10 * state.level;
+        const gain = baseScore * state.combo;
+        state.score += gain;
+
+        AudioEngine.match();
+        spawnFeedback(c2.r, c2.c, `+${gain}${state.combo > 1 ? ' Combo!' : ''}`);
+
+        setTimeout(() => {
+            c1.matched = c2.matched = true;
+            document.getElementById(`c-${c1.r}-${c1.c}`).classList.add('matched');
+            document.getElementById(`c-${c2.r}-${c2.c}`).classList.add('matched');
+            clearPath();
+            state.selected = null;
+            state.isLock = false;
+            updateUI();
+            if (isWin()) end(true); else autoCheck();
+        }, 150);
+    }
+
+    function spawnFeedback(r, c, text) {
+        const layer = document.getElementById('feedback-layer');
+        const stride = state.cellSize;
+        const halfCell = (state.cellSize - 1) / 2;
+        
+        const div = document.createElement('div');
+        div.className = 'floating-score';
+        div.textContent = text;
+        // 坐标：列索引 * 跨度 + 单元格中心点
+        div.style.left = (c * stride + halfCell - 20) + 'px';
+        div.style.top = (r * stride) + 'px';
+        layer.appendChild(div);
+        setTimeout(() => div.remove(), 800);
+    }
+
+    function findPath(p1, p2) {
+        const grid = [];
+        for(let r=-1; r<=state.rows; r++) {
+            grid[r] = [];
+            for(let c=-1; c<=state.cols; c++) {
+                const inB = r>=0 && r<state.rows && c>=0 && c<state.cols;
+                grid[r][c] = (!inB || state.board[r][c].matched || (r===p2.r && c===p2.c)) ? 0 : 1;
+            }
+        }
+        const q = [{r:p1.r, c:p1.c, d:-1, t:0, p:[{r:p1.r,c:p1.c}]}];
+        const v = new Map();
+        while(q.length) {
+            const cur = q.shift();
+            if(cur.r===p2.r && cur.c===p2.c) return cur.p;
+            if(cur.t > 2) continue;
+            [[0,1],[0,-1],[1,0],[-1,0]].forEach((d, i) => {
+                const nr=cur.r+d[0], nc=cur.c+d[1];
+                if(nr>=-1 && nr<=state.rows && nc>=-1 && nc<=state.cols && grid[nr][nc]===0) {
+                    const nt = (cur.d===-1 || cur.d===i) ? cur.t : cur.t+1;
+                    if(nt<=2) {
+                        const key = `${nr},${nc},${i}`;
+                        if(!v.has(key) || v.get(key) > nt) {
+                            v.set(key, nt);
+                            q.push({r:nr, c:nc, d:i, t:nt, p:[...cur.p, {r:nr,c:nc}]});
+                        }
+                    }
+                }
+            });
+        }
+        return null;
+    }
+
+    function drawPath(path) {
+        const canvas = document.getElementById('line-canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.beginPath();
+        ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 4; ctx.lineCap='round'; ctx.lineJoin='round';
+        ctx.shadowBlur = 10; ctx.shadowColor = '#f1c40f';
+        
+        // 采用精准的跨度计算
+        const stride = state.cellSize;
+        const halfCell = (state.cellSize - 1) / 2;
+        
+        path.forEach((p, i) => {
+            const x = p.c * stride + halfCell;
+            const y = p.r * stride + halfCell;
+            if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        });
+        ctx.stroke();
+    }
+
+    function clearPath() {
+        const c = document.getElementById('line-canvas');
+        c.getContext('2d').clearRect(0,0,c.width,c.height);
+    }
+
+    function autoCheck() {
+        if(isWin()) return;
+        if(!findMatch()) {
+            const active = state.board.flat().filter(c => !c.matched);
+            const items = active.map(c => c.type).sort(() => Math.random()-0.5);
+            active.forEach(c => {
+                c.type = items.pop();
+                const el = document.getElementById(`c-${c.r}-${c.c}`);
+                el.innerHTML = c.type === 'P' ? POODLE : c.type;
+            });
+            autoCheck();
+        }
+    }
+
+    function findMatch() {
+        const active = state.board.flat().filter(c => !c.matched);
+        for(let i=0; i<active.length; i++) {
+            for(let j=i+1; j<active.length; j++) {
+                if(active[i].type === active[j].type && findPath(active[i], active[j])) return [active[i], active[j]];
+            }
+        }
+        return null;
+    }
+
+    function shuffle() {
+        if(state.shuffles<=0 || state.isLock) return;
+        state.shuffles--; 
+        AudioEngine.click();
+        updateUI(); 
+        autoCheck();
+    }
+
+    function useHint() {
+        if(state.hints<=0 || state.isLock) return;
+        const m = findMatch();
+        if(m) {
+            state.hints--; 
+            AudioEngine.click();
+            updateUI();
+            m.forEach(c => document.getElementById(`c-${c.r}-${c.c}`).classList.add('hint'));
+            setTimeout(() => m.forEach(c => document.getElementById(`c-${c.r}-${c.c}`).classList.remove('hint')), 1000);
+        }
+    }
+
+    function startTimer() {
+        if(state.timer) clearInterval(state.timer);
+        state.timer = setInterval(() => {
+            state.timeLeft--; 
+            document.getElementById('val-timer').textContent = state.timeLeft;
+            if(state.timeLeft <= 0) end(false);
+        }, 1000);
+    }
+
+    function isWin() { return state.board.flat().every(c => c.matched); }
+
+    function end(win) {
+        clearInterval(state.timer);
+        const ov = document.getElementById('overlay');
+        const tit = document.getElementById('over-title');
+        const dec = document.getElementById('over-desc');
+        ov.classList.remove('hidden');
+        if(win) {
+            AudioEngine.levelUp();
+            tit.textContent = "战绩彪炳！";
+            dec.textContent = `成功突破第 ${state.level} 关！战力值大幅提升！`;
+            state.level = state.level < 10 ? state.level + 1 : 1;
+        } else {
+            AudioEngine.error();
+            state.level = Math.max(1, state.level - 1);
+            tit.textContent = "Game Over!";
+            dec.textContent = `关卡太难了？退回第 ${state.level} 关重新修炼！`;
+        }
+    }
+
+    function updateUI() {
+        document.getElementById('val-level').textContent = state.level;
+        document.getElementById('val-score').textContent = state.score;
+        document.getElementById('val-hints').textContent = state.hints;
+        document.getElementById('val-shuffles').textContent = state.shuffles;
+    }
+
+    function syncCanvas() {
+        const w = document.getElementById('board-wrapper');
+        const b = document.getElementById('board');
+        const c = document.getElementById('line-canvas');
+        if(w && b && c) {
+            w.style.width = b.offsetWidth + 'px';
+            w.style.height = b.offsetHeight + 'px';
+            c.width = b.offsetWidth;
+            c.height = b.offsetHeight;
+        }
+    }
+
+    window.onresize = () => {
+        if(document.getElementById('overlay').classList.contains('hidden')) {
+            createBoard();
+        }
+    };
+</script>
+
+</body>
+</html>

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>方块得积分游戏</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #111;
+            font-family: "微软雅黑", sans-serif;
+            color: white;
+            padding: 20px;
+        }
+        canvas {
+            border: 3px solid #00f;
+            background: #000;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="480" height="720"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const WIDTH = 480, HEIGHT = 720;
+
+        // ===================== 游戏核心配置 =====================
+        const SCORE_PER_BLOCK = 18;
+        const LV1_MAX = 30225;
+        const LV2_MAX = 100000;
+        const INIT_HP = 5;
+        const LV2_HP = 8;
+
+        // ===================== 激光成长系统（又长又粗） =====================
+        const LASER_MIN_WIDTH = 6;
+        const LASER_MAX_WIDTH = 12;
+        const LASER_BASE_HEIGHT = 40;
+        const LASER_MAX_HEIGHT = 60;
+        const LASER_GROW = 1;
+        const LASER_DECAY_TIME = 800;
+        const LASER_MAX_ENERGY = 20;
+        let laserEnergy = 0;
+        let lastHitTime = Date.now();
+
+        const LASER_COOLDOWN = 200;
+        let canShoot = true;
+
+        // ===================== 游戏状态：开始界面控制 =====================
+        let isStart = false;
+
+        // ===================== 玩家对象 =====================
+        const player = {
+            x: WIDTH / 2 - 20,
+            y: HEIGHT - 50,
+            width: 40,
+            height: 30,
+            speed: 8,
+            hp: INIT_HP,
+            color: '#ffff00'
+        };
+
+        let lasers = [];
+        let blocks = [];
+        let score = 0;
+        let level = 1;
+        let title = "新手";
+        let gameOver = false;
+        const keys = {};
+
+        // ===================== 键盘监听 =====================
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (isStart && !gameOver && (e.key === 'h' || e.key === 'H') && canShoot) {
+                shootLaser();
+                canShoot = false;
+                setTimeout(() => canShoot = true, LASER_COOLDOWN);
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        // ===================== 修复：鼠标点击开始游戏（精准碰撞） =====================
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor(e.clientX - rect.left);
+            const y = Math.floor(e.clientY - rect.top);
+            
+            // 精准匹配按钮区域，点击立即进入游戏
+            if (!isStart && x >= 140 && x <= 340 && y >= 570 && y <= 630) {
+                isStart = true;
+            }
+        });
+
+        // 发射激光
+        function shootLaser() {
+            const currentWidth = Math.min(LASER_MIN_WIDTH + laserEnergy, LASER_MAX_WIDTH);
+            const currentHeight = Math.min(LASER_BASE_HEIGHT + laserEnergy/2, LASER_MAX_HEIGHT);
+            lasers.push({
+                x: player.x + player.width / 2 - currentWidth / 2,
+                y: player.y - currentHeight/2,
+                width: currentWidth,
+                height: currentHeight,
+                speed: 15,
+                color: '#ff3232'
+            });
+        }
+
+        // 生成方块
+        function spawnBlock() {
+            if (!isStart || gameOver) return;
+            if (Math.random() < 0.015) {
+                let size = 40;
+                if (score >= LV2_MAX) size = 60;
+                blocks.push({
+                    x: Math.random() * (WIDTH - size),
+                    y: -size,
+                    size: size,
+                    speed: 1,
+                    color: '#0064ff'
+                });
+            }
+        }
+
+        // 彩虹颜色
+        function getRainbowColor() {
+            const hue = (Date.now() / 20) % 360;
+            return `hsla(${hue}, 100%, 60%, 1)`;
+        }
+
+        // 激光能量衰减
+        function updateLaserEnergy() {
+            const now = Date.now();
+            if (now - lastHitTime > LASER_DECAY_TIME && laserEnergy > 0) {
+                laserEnergy = Math.max(0, laserEnergy - 0.3);
+            }
+            laserEnergy = Math.min(laserEnergy, LASER_MAX_ENERGY);
+        }
+
+        // 碰撞检测
+        function checkCollisions() {
+            for (let i = lasers.length - 1; i >= 0; i--) {
+                for (let j = blocks.length - 1; j >= 0; j--) {
+                    const l = lasers[i];
+                    const b = blocks[j];
+                    if (l.x < b.x + b.size && l.x + l.width > b.x && l.y < b.y + b.size && l.y + l.height > b.y) {
+                        lasers.splice(i, 1);
+                        blocks.splice(j, 1);
+                        score += SCORE_PER_BLOCK;
+                        laserEnergy += LASER_GROW;
+                        lastHitTime = Date.now();
+                        break;
+                    }
+                }
+            }
+
+            for (let j = blocks.length - 1; j >= 0; j--) {
+                const b = blocks[j];
+                if (b.y > HEIGHT) {
+                    blocks.splice(j, 1);
+                    player.hp--;
+                    if (player.hp <= 0) gameOver = true;
+                }
+            }
+        }
+
+        // 等级判断
+        function updateLevel() {
+            if (score < LV1_MAX) {
+                level = 1;
+                title = "新手";
+            } else if (score >= LV1_MAX && score < LV2_MAX) {
+                level = 2;
+                title = "精英";
+                player.hp = LV2_HP;
+            } else {
+                level = 3;
+                title = "无穷大";
+            }
+        }
+
+        // ===================== 绘制：开始界面（修复按钮绘制） =====================
+        function drawStartUI(){
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0,0,WIDTH,HEIGHT);
+
+            // 标题
+            ctx.fillStyle = '#00f';
+            ctx.font = 'bold 50px 微软雅黑';
+            ctx.fillText('方块得积分游戏', 45, 150);
+
+            // 操作说明
+            ctx.fillStyle = '#fff';
+            ctx.font = '26px 微软雅黑';
+            ctx.fillText('🎮 操作说明', 160, 230);
+            ctx.font = '22px 微软雅黑';
+            ctx.fillText('← → 方向键：移动人物', 100, 280);
+            ctx.fillText('H 键：发射激光子弹', 100, 320);
+
+            // 游戏规则
+            ctx.fillText('📜 游戏规则', 160, 370);
+            ctx.fillText('击毁蓝色方块+18分', 100, 410);
+            ctx.fillText('激光击中会变粗变长', 100, 450);
+            ctx.fillText('方块落地扣血，血量为0游戏结束', 100, 490);
+            ctx.fillText('10万分解锁终极称号', 100, 530);
+
+            // 开始按钮（兼容所有浏览器）
+            ctx.fillStyle = '#ff3232';
+            ctx.fillRect(140, 570, 200, 60);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 30px 微软雅黑';
+            ctx.fillText('开始游戏', 175, 610);
+        }
+
+        // 绘制游戏界面
+        function drawGame() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+            if (gameOver) {
+                ctx.fillStyle = '#ff3232';
+                ctx.font = '50px 微软雅黑';
+                ctx.fillText('游戏结束', WIDTH/2 - 120, HEIGHT/2);
+                ctx.font = '30px 微软雅黑';
+                ctx.fillText(`最终得分：${score}`, WIDTH/2 - 80, HEIGHT/2 + 50);
+                return;
+            }
+
+            // 玩家
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+
+            // 激光
+            lasers.forEach(laser => {
+                ctx.fillStyle = laserEnergy >= LASER_MAX_ENERGY ? getRainbowColor() : laser.color;
+                ctx.fillRect(laser.x, laser.y, laser.width, laser.height);
+            });
+
+            // 方块
+            blocks.forEach(block => {
+                ctx.fillStyle = block.color;
+                ctx.fillRect(block.x, block.y, block.size, block.size);
+            });
+
+            // UI
+            ctx.fillStyle = '#fff';
+            ctx.font = '24px 微软雅黑';
+            ctx.fillText(`积分：${score}`, 10, 30);
+            ctx.fillText(`生命：${player.hp}`, 10, 60);
+            ctx.fillText(`等级：Lv${level}`, 10, 90);
+            ctx.fillText(`称号：${title}`, 10, 120);
+            ctx.fillText(`激光能量：${Math.round(laserEnergy)}`, 10, 150);
+        }
+
+        // 游戏更新
+        function update() {
+            if(!isStart || gameOver) return;
+
+            // 玩家移动
+            if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
+            if (keys['ArrowRight'] && player.x + player.width < WIDTH) player.x += player.speed;
+
+            // 激光移动
+            lasers.forEach(laser => laser.y -= laser.speed);
+            lasers = lasers.filter(laser => laser.y > -laser.height);
+
+            // 方块移动
+            blocks.forEach(block => block.y += block.speed);
+
+            updateLaserEnergy();
+            updateLevel();
+            spawnBlock();
+            checkCollisions();
+        }
+
+        // 主循环
+        function gameLoop() {
+            if(!isStart){
+                drawStartUI();
+            }else{
+                update();
+                drawGame();
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>

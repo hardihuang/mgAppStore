@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>恐龙快跑 | Lucas 制作</title>
+    <style>
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+            font-family: 'Arial Rounded MT Bold', 'Microsoft Yahei', sans-serif;
+        }
+        body { 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            overflow: hidden;
+        }
+
+        .game-container { 
+            position: relative; 
+            width: 800px; 
+            height: 400px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden; 
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+        }
+
+        .ground { 
+            position: absolute; 
+            bottom: 60px;
+            width: 200%; 
+            height: 20px; 
+            background: #555;
+            animation: groundMove 8s linear infinite;
+        }
+        @keyframes groundMove { 
+            0% { transform: translateX(0); } 
+            100% { transform: translateX(-50%); } 
+        }
+
+        .dino { 
+            position: absolute; 
+            bottom: 80px; 
+            left: 80px; 
+            width: 60px; 
+            height: 70px; 
+            background: #c4c4c4;
+            border: 3px solid #222;
+            border-radius: 6px 6px 0 0;
+            transition: all 0.2s ease; 
+            z-index: 10; 
+        }
+        .dino::before {
+            content: ''; 
+            position: absolute; 
+            top: 10px; 
+            right: -12px; 
+            width: 24px; 
+            height: 24px; 
+            background: #c4c4c4;
+            border: 3px solid #222;
+            border-radius: 50%;
+        }
+        .dino::after {
+            content: '';
+            position: absolute;
+            top: 16px;
+            right: -6px;
+            width: 6px;
+            height: 6px;
+            background: #222;
+            border-radius: 50%;
+        }
+        .dino.jump { animation: jump 0.6s ease; }
+        @keyframes jump { 
+            0% { transform: translateY(0); } 
+            50% { transform: translateY(-150px); } 
+            100% { transform: translateY(0); } 
+        }
+        .dino.duck { 
+            height: 35px; 
+            transform: translateY(35px); 
+        }
+
+        .obstacles { 
+            position: absolute; 
+            width: 100%; 
+            height: calc(100% - 80px);
+            bottom: 80px; 
+        }
+
+        .obstacle { 
+            position: absolute; 
+            bottom: 0; 
+            width: 40px; 
+            background: #9ccc65;
+            border: 3px solid #2e7d32;
+            border-radius: 4px;
+            animation: obstacleMove linear forwards; 
+        }
+
+        .obstacle.bird { 
+            background: #fafafa;
+            border: 3px solid #222;
+            height: 25px; 
+            bottom: 50px; 
+            border-radius: 12px;
+        }
+        .obstacle.bird::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: -8px;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-top: 6px solid transparent;
+            border-bottom: 6px solid transparent;
+            border-right: 8px solid #222;
+        }
+        @keyframes obstacleMove { 
+            0% { left: 800px; } 
+            100% { left: -50px; } 
+        }
+
+        .score { 
+            position: absolute; 
+            top: 20px; 
+            right: 20px; 
+            font-size: 28px; 
+            font-weight: bold; 
+            color: #333333;
+            background: rgba(255,255,255,0.8);
+            padding: 8px 16px;
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .game-title {
+            font-size: 64px;
+            color: #2d3748;
+            margin-bottom: 40px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            letter-spacing: 2px;
+        }
+        .start-btn {
+            padding: 16px 48px;
+            font-size: 24px;
+            color: white;
+            background: linear-gradient(to right, #4facfe 0%, #00f2fe 100%);
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        .start-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 20px rgba(0,0,0,0.15);
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 150;
+            display: none;
+        }
+        .game-over-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 40px;
+            text-align: center;
+            z-index: 200;
+            display: none;
+        }
+        .modal-title {
+            font-size: 36px;
+            color: #e53e3e;
+            margin-bottom: 20px;
+        }
+        .final-score-text {
+            font-size: 24px;
+            color: #2d3748;
+            margin-bottom: 30px;
+        }
+        .final-score-value {
+            font-size: 48px;
+            color: #4299e1;
+            font-weight: bold;
+        }
+        .restart-btn {
+            padding: 12px 36px;
+            font-size: 20px;
+            color: white;
+            background: linear-gradient(to right, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        .restart-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+        }
+
+        .developer-info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            color: #718096;
+            text-align: center;
+            z-index: 5;
+        }
+
+        .stop-animation { animation-play-state: paused !important; }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="start-screen" id="startScreen">
+            <h1 class="game-title">恐龙快跑</h1>
+            <button class="start-btn" id="startBtn">开始游戏</button>
+        </div>
+
+        <div class="ground"></div>
+        <div class="dino"></div>
+        <div class="obstacles"></div>
+        <div class="score">分数: 0</div>
+
+        <div class="overlay" id="overlay"></div>
+        <div class="game-over-modal" id="gameOverModal">
+            <h2 class="modal-title">游戏结束</h2>
+            <p class="final-score-text">
+                最终得分: <span class="final-score-value" id="finalScore">0</span>
+            </p>
+            <button class="restart-btn" id="restartBtn">重新开始</button>
+        </div>
+
+        <div class="developer-info">本游戏由独立制作人 Lucas 开发</div>
+    </div>
+
+    <script>
+        // 音效对象（使用Web Audio API生成简单音效）
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playJumpSound() {
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.type = 'square';
+            oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+
+            oscillator.start();
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.15);
+            oscillator.stop(audioCtx.currentTime + 0.15);
+        }
+
+        function playDeathSound() {
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(220, audioCtx.currentTime); // A3
+            gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+
+            oscillator.start();
+            oscillator.frequency.exponentialRampToValueAtTime(110, audioCtx.currentTime + 0.5);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.5);
+            oscillator.stop(audioCtx.currentTime + 0.5);
+        }
+
+        const dino = document.querySelector('.dino');
+        const ground = document.querySelector('.ground');
+        const obstaclesContainer = document.querySelector('.obstacles');
+        const scoreElement = document.querySelector('.score');
+        const startScreen = document.getElementById('startScreen');
+        const startBtn = document.getElementById('startBtn');
+        const gameOverModal = document.getElementById('gameOverModal');
+        const overlay = document.getElementById('overlay');
+        const finalScore = document.getElementById('finalScore');
+        const restartBtn = document.getElementById('restartBtn');
+
+        let gameRunning = false; 
+        let score = 0; 
+        let gameSpeed = 5; 
+        let obstacleInterval = 1500; 
+        let scoreInterval; 
+        let obstacleTimer; 
+        let isDucking = false;
+
+        function initGame() {
+            score = 0;
+            scoreElement.textContent = `分数: ${score}`;
+            gameRunning = false;
+            gameSpeed = 5;
+            obstacleInterval = 1500;
+            obstaclesContainer.innerHTML = '';
+            ground.classList.remove('stop-animation');
+            dino.classList.remove('stop-animation', 'jump', 'duck');
+            isDucking = false;
+            gameOverModal.style.display = 'none';
+            overlay.style.display = 'none';
+            startScreen.style.display = 'flex';
+        }
+
+        function startGame() {
+            if (gameRunning) return;
+            startScreen.style.display = 'none';
+            gameRunning = true;
+
+            scoreInterval = setInterval(() => {
+                score++;
+                scoreElement.textContent = `分数: ${score}`;
+                if (score % 50 === 0) { 
+                    gameSpeed += 0.2;    
+                    obstacleInterval = Math.max(800, obstacleInterval - 25); 
+                    clearInterval(obstacleTimer);
+                    createObstacles();
+                }
+            }, 100);
+            createObstacles();
+        }
+
+        function createObstacles() {
+            obstacleTimer = setInterval(() => {
+                if (!gameRunning) return;
+                const obstacle = document.createElement('div');
+                obstacle.classList.add('obstacle');
+                const isBird = Math.random() > 0.7;
+                if (isBird) {
+                    obstacle.classList.add('bird');
+                } else {
+                    const cactusHeights = [
+                        30 + Math.random() * 20,  
+                        50 + Math.random() * 20,  
+                        70 + Math.random() * 20,  
+                        20 + Math.random() * 15   
+                    ];
+                    const randomHeight = cactusHeights[Math.floor(Math.random() * cactusHeights.length)];
+                    obstacle.style.height = `${randomHeight}px`;
+                }
+                obstacle.style.animationDuration = `${10 / gameSpeed}s`;
+                obstaclesContainer.appendChild(obstacle);
+                setTimeout(() => obstacle.remove(), 10000);
+
+                const collisionCheck = setInterval(() => {
+                    if (!gameRunning) { 
+                        clearInterval(collisionCheck); 
+                        return; 
+                    }
+                    const dinoRect = dino.getBoundingClientRect();
+                    const obstacleRect = obstacle.getBoundingClientRect();
+                    const gameRect = document.querySelector('.game-container').getBoundingClientRect();
+                    const dX = dinoRect.left - gameRect.left;
+                    const dY = dinoRect.top - gameRect.top;
+                    const oX = obstacleRect.left - gameRect.left;
+                    const oY = obstacleRect.top - gameRect.top;
+
+                    if (
+                        dX + dinoRect.width > oX + 5 && 
+                        dX < oX + obstacleRect.width - 5 && 
+                        dY + dinoRect.height > oY + 5 && 
+                        dY < oY + obstacleRect.height - 5
+                    ) {
+                        gameOver();
+                        clearInterval(collisionCheck);
+                    }
+                }, 10);
+            }, obstacleInterval);
+        }
+
+        function jump() {
+            if (!gameRunning) return;
+            if (dino.classList.contains('jump') || isDucking) return;
+            playJumpSound(); // 跳跃音效
+            dino.classList.add('jump');
+            setTimeout(() => dino.classList.remove('jump'), 600);
+        }
+
+        function duck() { 
+            if (gameRunning && !dino.classList.contains('jump')) { 
+                isDucking = true; 
+                dino.classList.add('duck'); 
+            } 
+        }
+        
+        function stopDucking() { 
+            if (isDucking) { 
+                isDucking = false; 
+                dino.classList.remove('duck'); 
+            } 
+        }
+        
+        function gameOver() {
+            gameRunning = false;
+            clearInterval(scoreInterval);
+            clearInterval(obstacleTimer);
+            playDeathSound(); // 死亡音效
+            ground.classList.add('stop-animation');
+            dino.classList.add('stop-animation');
+            document.querySelectorAll('.obstacle').forEach(obs => {
+                obs.classList.add('stop-animation');
+            });
+            finalScore.textContent = score;
+            gameOverModal.style.display = 'block';
+            overlay.style.display = 'block';
+        }
+
+        startBtn.addEventListener('click', () => {
+            audioCtx.resume(); // 浏览器需要用户交互才能播放音频
+            startGame();
+        });
+        
+        restartBtn.addEventListener('click', () => {
+            audioCtx.resume();
+            initGame(); 
+            startGame(); 
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === ' ' || e.key === 'ArrowUp') { 
+                e.preventDefault(); 
+                audioCtx.resume();
+                if (!gameRunning && startScreen.style.display === 'flex') {
+                    startGame();
+                } else {
+                    jump();
+                }
+            } else if (e.key === 'ArrowDown') { 
+                e.preventDefault(); 
+                duck(); 
+            }
+        });
+        document.addEventListener('keyup', (e) => { 
+            if (e.key === 'ArrowDown') stopDucking(); 
+        });
+
+        window.addEventListener('load', initGame);
+    </script>
+</body>
+</html>

@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D AE86 Daytona - Explode & Reset</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #4aa8ff; }
+        #instructions {
+            position: absolute; top: 10px; left: 10px;
+            color: black; font-family: sans-serif;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            user-select: none;
+            pointer-events: none;
+            z-index: 10;
+        }
+        #speedometer {
+            position: absolute; bottom: 30px; right: 30px;
+            color: #00ffff; background: rgba(0, 0, 0, 0.85);
+            padding: 15px 25px; border-radius: 12px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 48px; font-weight: bold;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+            border: 2px solid #00ffff; text-shadow: 0 0 10px #00ffff;
+            user-select: none; pointer-events: none;
+            display: flex; align-items: baseline; gap: 8px;
+            z-index: 10;
+        }
+        #speedometer .unit { font-size: 20px; color: #aaaaaa; text-shadow: none; }
+        
+        /* NEW: Crash Screen Overlay */
+        #crash-screen {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(255, 0, 0, 0.4);
+            color: white; font-family: Impact, sans-serif;
+            font-size: 100px; font-weight: bold; font-style: italic;
+            display: none; /* Hidden by default */
+            justify-content: center; align-items: center;
+            text-shadow: 0 0 20px black;
+            z-index: 20;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="instructions">
+        <b>Daytona 赛道控制说明：</b><br>
+        W/S 或 上/下方向键 : 加速 / 刹车<br>
+        A/D 或 左/右方向键 : 转向<br>
+        SPACE (空格) : 手刹 (长按进行高速漂移！)<br>
+        <b>鼠标 : 点击并拖动以环顾四周！</b>
+    </div>
+
+    <div id="speedometer"><span id="speed-value">0</span> <span class="unit">KM/H</span></div>
+    
+    <div id="crash-screen">CRASHED!</div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // ==========================================
+        // 1. SCENE SETUP
+        // ==========================================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x4aa8ff);
+        scene.fog = new THREE.Fog(0x4aa8ff, 200, 800);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true; 
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+        document.body.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4); 
+        scene.add(ambientLight);
+        
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        sunLight.position.set(150, 200, 100);
+        sunLight.castShadow = true; 
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 1000;
+        sunLight.shadow.camera.left = -300;
+        sunLight.shadow.camera.right = 300;
+        sunLight.shadow.camera.top = 300;
+        sunLight.shadow.camera.bottom = -300;
+        sunLight.shadow.mapSize.width = 2048; 
+        sunLight.shadow.mapSize.height = 2048;
+        scene.add(sunLight);
+
+        // ==========================================
+        // 2. THE AE86
+        // ==========================================
+        const carGroup = new THREE.Group();
+        
+        const matWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, metalness: 0.1 });
+        const matBlack = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
+        const matGlass = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.1, metalness: 0.8 });
+        const matTail = new THREE.MeshStandardMaterial({ color: 0xaa0000 });
+
+        const lowerBody = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.25, 4.05), matBlack);
+        lowerBody.position.y = 0.35; carGroup.add(lowerBody);
+        const mainBody = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.4, 4.0), matWhite);
+        mainBody.position.y = 0.65; carGroup.add(mainBody);
+        const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.5, 1.8), matGlass);
+        cabin.position.set(0, 1.05, -0.4); carGroup.add(cabin);
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.05, 1.85), matWhite);
+        roof.position.set(0, 1.3, -0.4); carGroup.add(roof);
+        const hood = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.05, 1.2), matBlack);
+        hood.position.set(0, 0.85, 1.2); carGroup.add(hood);
+        
+        const popUpL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.2), matBlack);
+        popUpL.position.set(0.5, 0.95, 1.6); carGroup.add(popUpL);
+        const popUpR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.2), matBlack);
+        popUpR.position.set(-0.5, 0.95, 1.6); carGroup.add(popUpR);
+        
+        const tailLight = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.15, 0.1), matTail);
+        tailLight.position.set(0, 0.65, -2.01); carGroup.add(tailLight);
+
+        const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.25, 16);
+        wheelGeo.rotateZ(Math.PI / 2);
+        const frontWheels = [];
+        [[-0.8, 0.32, 1.3], [0.8, 0.32, 1.3], [-0.8, 0.32, -1.3], [0.8, 0.32, -1.3]].forEach((pos, i) => {
+            const wheel = new THREE.Mesh(wheelGeo, matBlack);
+            wheel.position.set(...pos); carGroup.add(wheel);
+            if(i < 2) frontWheels.push(wheel);
+        });
+
+        carGroup.children.forEach(child => { child.castShadow = true; child.receiveShadow = true; });
+
+        carGroup.position.set(0, 0, -150);
+        carGroup.rotation.y = Math.PI / 2;
+        scene.add(carGroup);
+
+        // ==========================================
+        // 3. EXPLOSION PARTICLES SYSTEM (NEW)
+        // ==========================================
+        const explosionGroup = new THREE.Group();
+        scene.add(explosionGroup);
+        
+        let explosionParticles = [];
+        const particleGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+        const particleMat = new THREE.MeshStandardMaterial({ 
+            color: 0xffaa00, // Fire orange
+            emissive: 0xff2200, // Glows red
+            emissiveIntensity: 1 
+        });
+
+        // ==========================================
+        // 4. DAYTONA TRACK
+        // ==========================================
+        const trackRadiusX = 400; const trackRadiusZ = 150; const trackWidth = 22;    
+
+        class OvalCurve extends THREE.Curve {
+            getPoint(t, optionalTarget = new THREE.Vector3()) {
+                const angle = 2 * Math.PI * t;
+                return optionalTarget.set(Math.cos(angle) * trackRadiusX, 0, Math.sin(angle) * trackRadiusZ);
+            }
+        }
+        
+        const ovalCurve = new OvalCurve();
+        const roadMesh = new THREE.Mesh(new THREE.TubeGeometry(ovalCurve, 200, trackWidth, 8, true), new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 }));
+        roadMesh.scale.y = 0.001; roadMesh.position.y = -0.01; roadMesh.receiveShadow = true; scene.add(roadMesh);
+
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.MeshStandardMaterial({ color: 0x388e3c }));
+        ground.rotation.x = -Math.PI / 2; ground.position.y = -0.05; ground.receiveShadow = true; scene.add(ground);
+
+        // Walls
+        const matWall = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        const matInnerWall = new THREE.MeshStandardMaterial({ color: 0xdd1111 });
+
+        class OuterWallCurve extends THREE.Curve {
+            getPoint(t, opt = new THREE.Vector3()) {
+                const angle = 2 * Math.PI * t;
+                const r = (trackRadiusX * trackRadiusZ) / Math.sqrt((trackRadiusZ * Math.cos(angle))**2 + (trackRadiusX * Math.sin(angle))**2);
+                return opt.set(Math.cos(angle) * (r + trackWidth), 1, Math.sin(angle) * (r + trackWidth));
+            }
+        }
+        const outerWall = new THREE.Mesh(new THREE.TubeGeometry(new OuterWallCurve(), 200, 1.5, 6, true), matWall);
+        outerWall.castShadow = true; scene.add(outerWall);
+
+        class InnerWallCurve extends THREE.Curve {
+            getPoint(t, opt = new THREE.Vector3()) {
+                const angle = 2 * Math.PI * t;
+                const r = (trackRadiusX * trackRadiusZ) / Math.sqrt((trackRadiusZ * Math.cos(angle))**2 + (trackRadiusX * Math.sin(angle))**2);
+                return opt.set(Math.cos(angle) * (r - trackWidth), 0.8, Math.sin(angle) * (r - trackWidth));
+            }
+        }
+        const innerWall = new THREE.Mesh(new THREE.TubeGeometry(new InnerWallCurve(), 200, 1.2, 6, true), matInnerWall);
+        innerWall.castShadow = true; scene.add(innerWall);
+
+        // ==========================================
+        // 5. INPUT CONTROLS
+        // ==========================================
+        const keys = { w: false, s: false, a: false, d: false, space: false };
+        window.addEventListener('keydown', (e) => { 
+            const k = e.key.toLowerCase();
+            if(k === ' ') keys.space = true; else if(k === 'w' || k === 'arrowup') keys.w = true; else if(k === 's' || k === 'arrowdown') keys.s = true; else if(k === 'a' || k === 'arrowleft') keys.a = true; else if(k === 'd' || k === 'arrowright') keys.d = true;
+        });
+        window.addEventListener('keyup', (e) => { 
+            const k = e.key.toLowerCase();
+            if(k === ' ') keys.space = false; else if(k === 'w' || k === 'arrowup') keys.w = false; else if(k === 's' || k === 'arrowdown') keys.s = false; else if(k === 'a' || k === 'arrowleft') keys.a = false; else if(k === 'd' || k === 'arrowright') keys.d = false;
+        });
+
+        let isDragging = false; let camYawOffset = 0; let camPitchOffset = 0;
+        window.addEventListener('mousedown', () => isDragging = true);
+        window.addEventListener('mouseup', () => { isDragging = false; camYawOffset = 0; camPitchOffset = 0; });
+        window.addEventListener('mousemove', (e) => {
+            if(isDragging) { camYawOffset -= e.movementX * 0.01; camPitchOffset = Math.max(-0.2, Math.min(1.0, camPitchOffset - e.movementY * 0.01)); }
+        });
+
+        // ==========================================
+        // 6. GAME LOGIC & PHYSICS
+        // ==========================================
+        let velocity = new THREE.Vector2(0, 0); 
+        let heading = Math.PI / 2; 
+        const accel = 0.02; const friction = 0.988; const baseTurn = 0.035; const carRadius = 2.0;
+        const speedValueUI = document.getElementById('speed-value');
+        const crashScreenUI = document.getElementById('crash-screen');
+        
+        let isDead = false; // Tracks if the player has crashed
+
+        function triggerExplosion() {
+            if (isDead) return;
+            isDead = true;
+            
+            // Hide the car
+            carGroup.visible = false;
+            
+            // Show Wasted screen
+            crashScreenUI.style.display = 'flex';
+
+            // Spawn 50 flying debris particles at the car's location
+            for (let i = 0; i < 50; i++) {
+                const mesh = new THREE.Mesh(particleGeo, particleMat);
+                mesh.position.copy(carGroup.position);
+                mesh.position.y += 1; // Start slightly off the ground
+                explosionGroup.add(mesh);
+
+                explosionParticles.push({
+                    mesh: mesh,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: Math.random() * 1.5 + 0.5, // Shoot upwards
+                    vz: (Math.random() - 0.5) * 2
+                });
+            }
+
+            // Wait 2.5 seconds, then reset
+            setTimeout(resetGame, 2500);
+        }
+
+        function resetGame() {
+            // Remove particles
+            while(explosionGroup.children.length > 0) {
+                explosionGroup.remove(explosionGroup.children[0]);
+            }
+            explosionParticles = [];
+
+            // Reset Car stats
+            carGroup.position.set(0, 0, -150);
+            heading = Math.PI / 2;
+            velocity.set(0, 0);
+            carGroup.rotation.y = heading;
+            
+            // Show Car, hide UI
+            carGroup.visible = true;
+            crashScreenUI.style.display = 'none';
+            isDead = false;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // --- ANIMATE EXPLOSION ---
+            if (explosionParticles.length > 0) {
+                explosionParticles.forEach(p => {
+                    p.mesh.position.x += p.vx;
+                    p.mesh.position.y += p.vy;
+                    p.mesh.position.z += p.vz;
+                    p.mesh.rotation.x += 0.1;
+                    p.mesh.rotation.y += 0.1;
+                    p.vy -= 0.05; // Gravity pulls them down
+
+                    // Stop particles from falling through the floor
+                    if (p.mesh.position.y < 0) {
+                        p.mesh.position.y = 0;
+                        p.vx *= 0.8;
+                        p.vz *= 0.8;
+                    }
+                });
+            }
+
+            // --- DRIVING PHYSICS (Only works if alive) ---
+            if (!isDead) {
+                if (keys.w) { velocity.x += Math.sin(heading) * accel; velocity.y += Math.cos(heading) * accel; }
+                if (keys.s) { velocity.x -= Math.sin(heading) * accel * 0.5; velocity.y -= Math.cos(heading) * accel * 0.5; }
+
+                velocity.x *= friction; velocity.y *= friction;
+                const speed = Math.sqrt(velocity.x**2 + velocity.y**2);
+
+                // Update Speedometer UI
+                let displaySpeed = Math.floor(speed * 160);
+                if (displaySpeed < 1) displaySpeed = 0; 
+                speedValueUI.innerText = displaySpeed;
+
+                if (speed > 0.05) {
+                    const turnSpeed = baseTurn * (1.1 - (speed * 0.1));
+                    if (keys.a) heading += turnSpeed;
+                    if (keys.d) heading -= turnSpeed;
+                }
+
+                const grip = keys.space ? 0.015 : 0.12; 
+                velocity.x += (Math.sin(heading) * speed - velocity.x) * grip;
+                velocity.y += (Math.cos(heading) * speed - velocity.y) * grip;
+
+                carGroup.position.x += velocity.x;
+                carGroup.position.z += velocity.y;
+                carGroup.rotation.y = heading;
+
+                // --- DEADLY COLLISION DETECTION ---
+                const angle = Math.atan2(carGroup.position.z, carGroup.position.x);
+                const rIdeal = (trackRadiusX * trackRadiusZ) / Math.sqrt((trackRadiusZ * Math.cos(angle))**2 + (trackRadiusX * Math.sin(angle))**2);
+                const currentDist = Math.sqrt(carGroup.position.x**2 + carGroup.position.z**2);
+
+                if (currentDist > rIdeal + trackWidth - carRadius || currentDist < rIdeal - trackWidth + carRadius) {
+                    triggerExplosion(); // BOOM!
+                }
+
+                const steerAngle = keys.a ? 0.5 : (keys.d ? -0.5 : 0);
+                frontWheels.forEach(w => w.rotation.y = steerAngle);
+            } else {
+                // If dead, speed reads 0
+                speedValueUI.innerText = "0";
+            }
+
+            // Lighting follows car
+            sunLight.position.set(carGroup.position.x + 150, 200, carGroup.position.z + 100);
+            sunLight.target = carGroup; 
+
+            // Camera Tracking
+            const dist = 14; 
+            const totalYaw = heading + camYawOffset + Math.PI; 
+            const camX = Math.sin(totalYaw) * dist;
+            const camZ = Math.cos(totalYaw) * dist;
+            const camY = 6 + (camPitchOffset * 10); 
+
+            const targetCamPos = carGroup.position.clone().add(new THREE.Vector3(camX, camY, camZ));
+            camera.position.lerp(targetCamPos, isDragging ? 0.3 : 0.08); 
+            camera.lookAt(carGroup.position);
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>

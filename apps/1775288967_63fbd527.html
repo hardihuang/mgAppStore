@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D AE86 Daytona - 真实物理引擎声效版</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #4aa8ff; font-family: sans-serif; }
+        
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.85); color: white;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 50; cursor: pointer;
+        }
+        #start-screen h1 { font-size: 60px; margin: 0; color: #ff3333; text-shadow: 0 0 20px #ff3333; }
+        #start-screen p { font-size: 24px; animation: blink 1.5s infinite; margin-top: 20px;}
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        #instructions {
+            position: absolute; top: 10px; left: 10px; color: black;
+            background: rgba(255, 255, 255, 0.9); padding: 15px; border-radius: 8px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); user-select: none; pointer-events: none; z-index: 10;
+        }
+        #speedometer {
+            position: absolute; bottom: 30px; right: 30px; color: #00ffff; background: rgba(0, 0, 0, 0.85);
+            padding: 15px 25px; border-radius: 12px; font-family: 'Courier New', Courier, monospace;
+            font-size: 48px; font-weight: bold; box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+            border: 2px solid #00ffff; text-shadow: 0 0 10px #00ffff; user-select: none; pointer-events: none;
+            display: flex; align-items: baseline; gap: 8px; z-index: 10;
+        }
+        #speedometer .unit { font-size: 20px; color: #aaaaaa; text-shadow: none; }
+        #gear-display { font-size: 24px; color: #ffaa00; margin-left: 15px; }
+        
+        #crash-screen {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(255, 0, 0, 0.6);
+            color: white; font-family: Impact, sans-serif; font-size: 100px; font-weight: bold; font-style: italic;
+            display: none; justify-content: center; align-items: center; text-shadow: 0 0 20px black;
+            z-index: 20; pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="start-screen">
+        <h1>AE86 ENGINE START</h1>
+        <p>戴上耳机体验真实声效，点击屏幕点火！</p>
+    </div>
+
+    <div id="instructions">
+        <b>赛道控制说明：</b><br>
+        W/S 或 上/下键 : 加速 / 刹车<br>
+        A/D 或 左/右键 : 转向<br>
+        SPACE (空格) : 漂移 (聆听轮胎尖叫！)<br>
+        <b>鼠标 : 拖动以环顾四周！</b>
+    </div>
+
+    <div id="speedometer">
+        <span id="speed-value">0</span> <span class="unit">KM/H</span>
+        <span id="gear-display">N</span>
+    </div>
+    
+    <div id="crash-screen">WASTED</div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // ==========================================
+        // 0. 高级 Web Audio API 合成器
+        // ==========================================
+        let audioCtx;
+        let engineOsc1, engineOsc2, engineGain;
+        let tireNoiseSource, tireFilter, tireGain;
+        let isAudioInitialized = false;
+
+        function initAudio() {
+            if (isAudioInitialized) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // --- 1. 真实引擎声 (双振荡器模拟轰鸣) ---
+            engineOsc1 = audioCtx.createOscillator();
+            engineOsc1.type = 'sawtooth'; // 主排气声
+            
+            engineOsc2 = audioCtx.createOscillator();
+            engineOsc2.type = 'square'; // 低频震动感 (降低一个八度)
+
+            const engineFilter = audioCtx.createBiquadFilter();
+            engineFilter.type = 'lowpass';
+            engineFilter.frequency.value = 800; // 过滤太刺耳的电子高频
+
+            engineGain = audioCtx.createGain();
+            engineGain.gain.value = 0.15;
+
+            engineOsc1.connect(engineFilter);
+            engineOsc2.connect(engineFilter);
+            engineFilter.connect(engineGain).connect(audioCtx.destination);
+            
+            engineOsc1.start();
+            engineOsc2.start();
+
+            // --- 2. 真实轮胎摩擦声 (白噪音+带通滤波器) ---
+            const bufferSize = audioCtx.sampleRate * 2; // 2秒循环的白噪音
+            const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                output[i] = Math.random() * 2 - 1;
+            }
+
+            tireNoiseSource = audioCtx.createBufferSource();
+            tireNoiseSource.buffer = noiseBuffer;
+            tireNoiseSource.loop = true;
+
+            tireFilter = audioCtx.createBiquadFilter();
+            tireFilter.type = 'bandpass'; // 只保留中间的尖锐声音
+            tireFilter.frequency.value = 1200; // 橡胶尖叫的频率
+            tireFilter.Q.value = 2; // 共鸣度
+
+            tireGain = audioCtx.createGain();
+            tireGain.gain.value = 0; // 默认静音
+
+            tireNoiseSource.connect(tireFilter).connect(tireGain).connect(audioCtx.destination);
+            tireNoiseSource.start();
+
+            isAudioInitialized = true;
+        }
+
+        function playCrashSound() {
+            if (!isAudioInitialized) return;
+            
+            // 撞击低音 thump
+            const thumpOsc = audioCtx.createOscillator();
+            const thumpGain = audioCtx.createGain();
+            thumpOsc.connect(thumpGain).connect(audioCtx.destination);
+            thumpOsc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            thumpOsc.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            thumpGain.gain.setValueAtTime(2, audioCtx.currentTime);
+            thumpGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            thumpOsc.start();
+            thumpOsc.stop(audioCtx.currentTime + 0.5);
+
+            // 撞击碎裂白噪音
+            const bufferSize = audioCtx.sampleRate * 1;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const noiseFilter = audioCtx.createBiquadFilter();
+            noiseFilter.type = 'lowpass'; noiseFilter.frequency.value = 2000;
+            const noiseGain = audioCtx.createGain();
+            noiseGain.gain.setValueAtTime(1.5, audioCtx.currentTime);
+            noiseGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1);
+
+            noise.connect(noiseFilter).connect(noiseGain).connect(audioCtx.destination);
+            noise.start();
+        }
+
+        document.getElementById('start-screen').addEventListener('click', () => {
+            initAudio();
+            document.getElementById('start-screen').style.display = 'none';
+        });
+
+        // ==========================================
+        // 1. SCENE SETUP (THREE.JS)
+        // ==========================================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x4aa8ff);
+        scene.fog = new THREE.Fog(0x4aa8ff, 200, 800);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+        document.body.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4); scene.add(ambientLight);
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        sunLight.position.set(150, 200, 100); sunLight.castShadow = true; 
+        sunLight.shadow.camera.near = 0.5; sunLight.shadow.camera.far = 1000;
+        sunLight.shadow.camera.left = -300; sunLight.shadow.camera.right = 300;
+        sunLight.shadow.camera.top = 300; sunLight.shadow.camera.bottom = -300;
+        sunLight.shadow.mapSize.width = 2048; sunLight.shadow.mapSize.height = 2048;
+        scene.add(sunLight);
+
+        // ==========================================
+        // 2. THE AE86 MODEL
+        // ==========================================
+        const carGroup = new THREE.Group();
+        const matWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, metalness: 0.1 });
+        const matBlack = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
+        const matGlass = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.1, metalness: 0.8 });
+        const matTail = new THREE.MeshStandardMaterial({ color: 0xaa0000 });
+
+        const lowerBody = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.25, 4.05), matBlack); lowerBody.position.y = 0.35; carGroup.add(lowerBody);
+        const mainBody = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.4, 4.0), matWhite); mainBody.position.y = 0.65; carGroup.add(mainBody);
+        const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.5, 1.8), matGlass); cabin.position.set(0, 1.05, -0.4); carGroup.add(cabin);
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.05, 1.85), matWhite); roof.position.set(0, 1.3, -0.4); carGroup.add(roof);
+        const hood = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.05, 1.2), matBlack); hood.position.set(0, 0.85, 1.2); carGroup.add(hood);
+        const popUpL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.2), matBlack); popUpL.position.set(0.5, 0.95, 1.6); carGroup.add(popUpL);
+        const popUpR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.2), matBlack); popUpR.position.set(-0.5, 0.95, 1.6); carGroup.add(popUpR);
+        const tailLight = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.15, 0.1), matTail); tailLight.position.set(0, 0.65, -2.01); carGroup.add(tailLight);
+
+        const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.25, 16); wheelGeo.rotateZ(Math.PI / 2);
+        const frontWheels = [];
+        [[-0.8, 0.32, 1.3], [0.8, 0.32, 1.3], [-0.8, 0.32, -1.3], [0.8, 0.32, -1.3]].forEach((pos, i) => {
+            const wheel = new THREE.Mesh(wheelGeo, matBlack); wheel.position.set(...pos); carGroup.add(wheel);
+            if(i < 2) frontWheels.push(wheel);
+        });
+
+        carGroup.children.forEach(child => { child.castShadow = true; child.receiveShadow = true; });
+        carGroup.position.set(0, 0, -150); carGroup.rotation.y = Math.PI / 2; scene.add(carGroup);
+
+        // ==========================================
+        // 3. EXPLOSION PARTICLES
+        // ==========================================
+        const explosionGroup = new THREE.Group(); scene.add(explosionGroup);
+        let explosionParticles = [];
+        const particleGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+        const particleMat = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0xff2200, emissiveIntensity: 1 });
+
+        // ==========================================
+        // 4. DAYTONA TRACK
+        // ==========================================
+        const trackRadiusX = 400; const trackRadiusZ = 150; const trackWidth = 22;    
+        class OvalCurve extends THREE.Curve {
+            getPoint(t, opt = new THREE.Vector3()) {
+                const angle = 2 * Math.PI * t; return opt.set(Math.cos(angle) * trackRadiusX, 0, Math.sin(angle) * trackRadiusZ);
+            }
+        }
+        const roadMesh = new THREE.Mesh(new THREE.TubeGeometry(new OvalCurve(), 200, trackWidth, 8, true), new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 }));
+        roadMesh.scale.y = 0.001; roadMesh.position.y = -0.01; roadMesh.receiveShadow = true; scene.add(roadMesh);
+
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.MeshStandardMaterial({ color: 0x388e3c }));
+        ground.rotation.x = -Math.PI / 2; ground.position.y = -0.05; ground.receiveShadow = true; scene.add(ground);
+
+        const matWall = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        const matInnerWall = new THREE.MeshStandardMaterial({ color: 0xdd1111 });
+        class OuterWallCurve extends THREE.Curve {
+            getPoint(t, opt = new THREE.Vector3()) {
+                const angle = 2 * Math.PI * t; const r = (trackRadiusX * trackRadiusZ) / Math.sqrt((trackRadiusZ * Math.cos(angle))**2 + (trackRadiusX * Math.sin(angle))**2);
+                return opt.set(Math.cos(angle) * (r + trackWidth), 1, Math.sin(angle) * (r + trackWidth));
+            }
+        }
+        const outerWall = new THREE.Mesh(new THREE.TubeGeometry(new OuterWallCurve(), 200, 1.5, 6, true), matWall); outerWall.castShadow = true; scene.add(outerWall);
+
+        class InnerWallCurve extends THREE.Curve {
+            getPoint(t, opt = new THREE.Vector3()) {
+                const angle = 2 * Math.PI * t; const r = (trackRadiusX * trackRadiusZ) / Math.sqrt((trackRadiusZ * Math.cos(angle))**2 + (trackRadiusX * Math.sin(angle))**2);
+                return opt.set(Math.cos(angle) * (r - trackWidth), 0.8, Math.sin(angle) * (r - trackWidth));
+            }
+        }
+        const innerWall = new THREE.Mesh(new THREE.TubeGeometry(new InnerWallCurve(), 200, 1.2, 6, true), matInnerWall); innerWall.castShadow = true; scene.add(innerWall);
+
+        // ==========================================
+        // 5. INPUT & LOGIC
+        // ==========================================
+        const keys = { w: false, s: false, a: false, d: false, space: false };
+        window.addEventListener('keydown', (e) => { 
+            const k = e.key.toLowerCase(); if(k === ' ') keys.space = true; else if(k === 'w' || k === 'arrowup') keys.w = true; else if(k === 's' || k === 'arrowdown') keys.s = true; else if(k === 'a' || k === 'arrowleft') keys.a = true; else if(k === 'd' || k === 'arrowright') keys.d = true;
+        });
+        window.addEventListener('keyup', (e) => { 
+            const k = e.key.toLowerCase(); if(k === ' ') keys.space = false; else if(k === 'w' || k === 'arrowup') keys.w = false; else if(k === 's' || k === 'arrowdown') keys.s = false; else if(k === 'a' || k === 'arrowleft') keys.a = false; else if(k === 'd' || k === 'arrowright') keys.d = false;
+        });
+
+        let isDragging = false; let camYawOffset = 0; let camPitchOffset = 0;
+        window.addEventListener('mousedown', () => isDragging = true);
+        window.addEventListener('mouseup', () => { isDragging = false; camYawOffset = 0; camPitchOffset = 0; });
+        window.addEventListener('mousemove', (e) => {
+            if(isDragging) { camYawOffset -= e.movementX * 0.01; camPitchOffset = Math.max(-0.2, Math.min(1.0, camPitchOffset - e.movementY * 0.01)); }
+        });
+
+        let velocity = new THREE.Vector2(0, 0); let heading = Math.PI / 2; 
+        const accel = 0.02; const friction = 0.988; const baseTurn = 0.035; const carRadius = 2.0;
+        let isDead = false; 
+
+        function triggerExplosion() {
+            if (isDead) return;
+            isDead = true; carGroup.visible = false;
+            document.getElementById('crash-screen').style.display = 'flex';
+            
+            playCrashSound(); 
+
+            for (let i = 0; i < 50; i++) {
+                const mesh = new THREE.Mesh(particleGeo, particleMat);
+                mesh.position.copy(carGroup.position); mesh.position.y += 1; explosionGroup.add(mesh);
+                explosionParticles.push({ mesh: mesh, vx: (Math.random() - 0.5) * 2, vy: Math.random() * 1.5 + 0.5, vz: (Math.random() - 0.5) * 2 });
+            }
+            setTimeout(resetGame, 2500);
+        }
+
+        function resetGame() {
+            while(explosionGroup.children.length > 0) explosionGroup.remove(explosionGroup.children[0]);
+            explosionParticles = [];
+            carGroup.position.set(0, 0, -150); heading = Math.PI / 2; velocity.set(0, 0); carGroup.rotation.y = heading;
+            carGroup.visible = true; document.getElementById('crash-screen').style.display = 'none'; isDead = false;
+        }
+
+        // 齿轮模拟器
+        let currentGear = 1;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (explosionParticles.length > 0) {
+                explosionParticles.forEach(p => {
+                    p.mesh.position.x += p.vx; p.mesh.position.y += p.vy; p.mesh.position.z += p.vz;
+                    p.mesh.rotation.x += 0.1; p.mesh.rotation.y += 0.1; p.vy -= 0.05;
+                    if (p.mesh.position.y < 0) { p.mesh.position.y = 0; p.vx *= 0.8; p.vz *= 0.8; }
+                });
+            }
+
+            if (!isDead && isAudioInitialized) {
+                if (keys.w) { velocity.x += Math.sin(heading) * accel; velocity.y += Math.cos(heading) * accel; }
+                if (keys.s) { velocity.x -= Math.sin(heading) * accel * 0.5; velocity.y -= Math.cos(heading) * accel * 0.5; }
+
+                velocity.x *= friction; velocity.y *= friction;
+                const speed = Math.sqrt(velocity.x**2 + velocity.y**2);
+                let displaySpeed = Math.floor(speed * 160);
+                if (displaySpeed < 1) displaySpeed = 0;
+
+                // --- 物理音频逻辑更新 ---
+                // 计算模拟 RPM 和 档位
+                let rpm = 1000;
+                if (displaySpeed < 45) { currentGear = 1; rpm = 1000 + (displaySpeed / 45) * 6000; }
+                else if (displaySpeed < 100) { currentGear = 2; rpm = 4500 + ((displaySpeed - 45) / 55) * 4000; }
+                else if (displaySpeed < 180) { currentGear = 3; rpm = 5000 + ((displaySpeed - 100) / 80) * 3500; }
+                else { currentGear = 4; rpm = 6000 + ((displaySpeed - 180) / 100) * 2500; }
+
+                document.getElementById('gear-display').innerText = "Gear " + currentGear;
+
+                // 根据 RPM 设置振荡器频率 (制造轰鸣感)
+                const baseFreq = rpm / 30; 
+                engineOsc1.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
+                engineOsc2.frequency.setValueAtTime(baseFreq / 2, audioCtx.currentTime); // 低音降半个八度
+                
+                // 油门负载感：按W时声音更粗更响
+                engineGain.gain.setTargetAtTime(keys.w ? 0.25 : 0.08, audioCtx.currentTime, 0.1);
+
+                // 真实的漂移摩擦声
+                if (keys.space && speed > 0.1) {
+                    tireGain.gain.setTargetAtTime(0.4, audioCtx.currentTime, 0.05);
+                    // 速度越快，摩擦声越尖锐
+                    tireFilter.frequency.setValueAtTime(800 + speed * 1000, audioCtx.currentTime);
+                } else {
+                    tireGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+                }
+
+                document.getElementById('speed-value').innerText = displaySpeed;
+
+                if (speed > 0.05) {
+                    const turnSpeed = baseTurn * (1.1 - (speed * 0.1));
+                    if (keys.a) heading += turnSpeed;
+                    if (keys.d) heading -= turnSpeed;
+                }
+
+                const grip = keys.space ? 0.015 : 0.12; 
+                velocity.x += (Math.sin(heading) * speed - velocity.x) * grip;
+                velocity.y += (Math.cos(heading) * speed - velocity.y) * grip;
+
+                carGroup.position.x += velocity.x; carGroup.position.z += velocity.y; carGroup.rotation.y = heading;
+
+                const angle = Math.atan2(carGroup.position.z, carGroup.position.x);
+                const rIdeal = (trackRadiusX * trackRadiusZ) / Math.sqrt((trackRadiusZ * Math.cos(angle))**2 + (trackRadiusX * Math.sin(angle))**2);
+                const currentDist = Math.sqrt(carGroup.position.x**2 + carGroup.position.z**2);
+
+                if (currentDist > rIdeal + trackWidth - carRadius || currentDist < rIdeal - trackWidth + carRadius) {
+                    triggerExplosion();
+                }
+
+                frontWheels.forEach(w => w.rotation.y = keys.a ? 0.5 : (keys.d ? -0.5 : 0));
+            } else if (isDead) {
+                document.getElementById('speed-value').innerText = "0";
+                if(isAudioInitialized) {
+                    engineGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+                    tireGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+                }
+            }
+
+            sunLight.position.set(carGroup.position.x + 150, 200, carGroup.position.z + 100); sunLight.target = carGroup; 
+            const dist = 14; const totalYaw = heading + camYawOffset + Math.PI; 
+            const targetCamPos = carGroup.position.clone().add(new THREE.Vector3(Math.sin(totalYaw) * dist, 6 + (camPitchOffset * 10), Math.cos(totalYaw) * dist));
+            camera.position.lerp(targetCamPos, isDragging ? 0.3 : 0.08); camera.lookAt(carGroup.position);
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+        animate();
+    </script>
+</body>
+</html>

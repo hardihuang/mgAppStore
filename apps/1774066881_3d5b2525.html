@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Master Chemistry Lab</title>
+    <style>
+        :root {
+            --bg: #050508;
+            --panel: #0f0f18;
+            --accent: #00f2ff;
+            --text: #e0e0e0;
+            --danger: #ff0055;
+            --warning: #ffcc00;
+            --discovery: #bd00ff;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar - Full 118 Element Grid */
+        #sidebar-left {
+            width: 400px;
+            background: var(--panel);
+            padding: 15px;
+            border-right: 1px solid #222;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .search-box {
+            background: #161625;
+            border: 1px solid #333;
+            padding: 12px;
+            border-radius: 8px;
+            color: white;
+            width: calc(100% - 24px);
+            outline: none;
+            font-size: 14px;
+        }
+        .search-box:focus { border-color: var(--accent); box-shadow: 0 0 10px rgba(0,242,255,0.2); }
+
+        .scroll-area {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        #element-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 6px;
+        }
+
+        .el-card {
+            background: #1a1a2e;
+            padding: 8px 2px;
+            border-radius: 6px;
+            cursor: grab;
+            transition: 0.2s;
+            border: 1px solid #2a2a40;
+            text-align: center;
+            position: relative;
+            user-select: none;
+        }
+        .el-card:hover { border-color: var(--accent); transform: translateY(-2px); background: #252545; }
+        .el-card.radioactive { border-color: var(--danger); }
+        
+        .el-z { position: absolute; top: 2px; left: 4px; font-size: 8px; opacity: 0.5; }
+        .el-sym { font-size: 18px; font-weight: 800; display: block; color: var(--accent); }
+        .el-name { font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.7; }
+
+        /* Categories */
+        .cat-noble { border-bottom: 3px solid #00f2ff; }
+        .cat-alkali { border-bottom: 3px solid #ff4444; }
+        .cat-transition { border-bottom: 3px solid #aaaaaa; }
+        .cat-nonmetal { border-bottom: 3px solid #ffff44; }
+        .cat-actinide { border-bottom: 3px solid #ff00ff; }
+
+        /* Main Workspace */
+        #main {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: radial-gradient(circle at center, #10101a 0%, #050508 100%);
+        }
+
+        #toolbar {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            padding: 20px;
+            z-index: 10;
+        }
+
+        .btn {
+            background: #1a1a2e;
+            border: 1px solid #444;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+        .btn:hover { border-color: var(--accent); background: #252545; }
+        .btn.danger { color: var(--danger); border-color: #500; }
+        .btn.danger:hover { background: #300; }
+
+        #stage {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .vessel {
+            width: 280px;
+            height: 350px;
+            border: 6px solid rgba(255,255,255,0.1);
+            border-top: none;
+            border-radius: 0 0 50px 50px;
+            position: relative;
+            background: rgba(255,255,255,0.02);
+            backdrop-filter: blur(5px);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        .liquid {
+            width: 100%;
+            height: 0%;
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .bubbles {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        /* Heat/Temp UI */
+        #temp-panel {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(0,0,0,0.6);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            text-align: center;
+            width: 120px;
+        }
+        #temp-slider { width: 100%; accent-color: var(--fire); }
+        .temp-val { font-family: monospace; font-size: 18px; color: #ff5e00; font-weight: bold; }
+
+        /* HUD */
+        #hud {
+            background: var(--panel);
+            height: 200px;
+            border-top: 1px solid #222;
+            display: flex;
+            padding: 20px;
+        }
+
+        .hud-section { flex: 1; padding: 0 20px; border-right: 1px solid #222; overflow-y: auto; }
+        .hud-section:last-child { border-right: none; }
+
+        .formula-big { font-size: 48px; font-weight: 900; color: var(--accent); margin: 0; }
+        .name-big { font-size: 20px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.8; }
+
+        #sidebar-right {
+            width: 300px;
+            background: var(--panel);
+            border-left: 1px solid #222;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .log-item {
+            background: #161625;
+            border: 1px solid #333;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--discovery);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn { from { transform: translateX(30px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+
+<div id="sidebar-left">
+    <h2 style="margin:0; color:var(--accent); font-size: 18px;">PERIODIC TABLE</h2>
+    <input type="text" class="search-box" placeholder="Search by Name, Symbol, or Z..." oninput="filterElements(this.value)">
+    <div class="scroll-area" id="element-grid"></div>
+</div>
+
+<div id="main">
+    <div id="toolbar">
+        <button class="btn" onclick="clearVessel()">Reset Experiment</button>
+        <button class="btn danger" onclick="purgeDiscoveries()">Purge Logs</button>
+    </div>
+
+    <div id="stage" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
+        <div class="vessel">
+            <div class="liquid" id="vessel-liquid">
+                <div class="bubbles" id="vessel-bubbles"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="temp-panel">
+        <div style="font-size: 10px; opacity: 0.5; margin-bottom: 5px;">VESSEL TEMP</div>
+        <div class="temp-val"><span id="temp-display">25</span>°C</div>
+        <input type="range" id="temp-slider" min="0" max="5000" value="25" oninput="updateTemp(this.value)">
+    </div>
+
+    <div id="hud">
+        <div class="hud-section" style="flex: 0.6;">
+            <div style="font-size: 10px; opacity: 0.5; margin-bottom: 10px;">CONTENTS</div>
+            <div id="inventory" style="font-family: monospace; font-size: 13px;">Empty</div>
+        </div>
+        <div class="hud-section" style="text-align: center; flex: 1.4;">
+            <p id="result-formula" class="formula-big">---</p>
+            <p id="result-name" class="name-big">Laboratory Idle</p>
+            <p id="result-desc" style="font-size: 13px; opacity: 0.6; max-width: 400px; margin: 10px auto;">Add elements to start synthesizing compounds or forging alloys.</p>
+        </div>
+    </div>
+</div>
+
+<div id="sidebar-right">
+    <h2 style="margin:0; color:var(--discovery); font-size: 18px;">DISCOVERY LOG</h2>
+    <div class="scroll-area" id="log-container" style="margin-top: 15px;">
+        <p id="empty-msg" style="text-align:center; opacity:0.3; margin-top:50px;">No discoveries yet.</p>
+    </div>
+</div>
+
+<script>
+    const FULL_PERIODIC_TABLE = [
+        {z:1,s:'H',n:'Hydrogen',c:'nonmetal'},{z:2,s:'He',n:'Helium',c:'noble'},{z:3,s:'Li',n:'Lithium',c:'alkali'},{z:4,s:'Be',n:'Beryllium',c:'alkaline'},{z:5,s:'B',n:'Boron',c:'metalloid'},{z:6,s:'C',n:'Carbon',c:'nonmetal'},{z:7,s:'N',n:'Nitrogen',c:'nonmetal'},{z:8,s:'O',n:'Oxygen',c:'nonmetal'},{z:9,s:'F',n:'Fluorine',c:'halogen'},{z:10,s:'Ne',n:'Neon',c:'noble'},
+        {z:11,s:'Na',n:'Sodium',c:'alkali'},{z:12,s:'Mg',n:'Magnesium',c:'alkaline'},{z:13,s:'Al',n:'Aluminum',c:'post-transition'},{z:14,s:'Si',n:'Silicon',c:'metalloid'},{z:15,s:'P',n:'Phosphorus',c:'nonmetal'},{z:16,s:'S',n:'Sulfur',c:'nonmetal'},{z:17,s:'Cl',n:'Chlorine',c:'halogen'},{z:18,s:'Ar',n:'Argon',c:'noble'},{z:19,s:'K',n:'Potassium',c:'alkali'},{z:20,s:'Ca',n:'Calcium',c:'alkaline'},
+        {z:21,s:'Sc',n:'Scandium',c:'transition'},{z:22,s:'Ti',n:'Titanium',c:'transition'},{z:23,s:'V',n:'Vanadium',c:'transition'},{z:24,s:'Cr',n:'Chromium',c:'transition'},{z:25,s:'Mn',n:'Manganese',c:'transition'},{z:26,s:'Fe',n:'Iron',c:'transition'},{z:27,s:'Co',n:'Cobalt',c:'transition'},{z:28,s:'Ni',n:'Nickel',c:'transition'},{z:29,s:'Cu',n:'Copper',c:'transition'},{z:30,s:'Zn',n:'Zinc',c:'transition'},
+        {z:31,s:'Ga',n:'Gallium',c:'post-transition'},{z:32,s:'Ge',n:'Germanium',c:'metalloid'},{z:33,s:'As',n:'Arsenic',c:'metalloid'},{z:34,s:'Se',n:'Selenium',c:'nonmetal'},{z:35,s:'Br',n:'Bromine',c:'halogen'},{z:36,s:'Kr',n:'Krypton',c:'noble'},{z:37,s:'Rb',n:'Rubidium',c:'alkali'},{z:38,s:'Sr',n:'Strontium',c:'alkaline'},{z:39,s:'Y',n:'Yttrium',c:'transition'},{z:40,s:'Zr',n:'Zirconium',c:'transition'},
+        {z:41,s:'Nb',n:'Niobium',c:'transition'},{z:42,s:'Mo',n:'Molybdenum',c:'transition'},{z:43,s:'Tc',n:'Technetium',c:'transition'},{z:44,s:'Ru',n:'Ruthenium',c:'transition'},{z:45,s:'Rh',n:'Rhodium',c:'transition'},{z:46,s:'Pd',n:'Palladium',c:'transition'},{z:47,s:'Ag',n:'Silver',c:'transition'},{z:48,s:'Cd',n:'Cadmium',c:'transition'},{z:49,s:'In',n:'Indium',c:'post-transition'},{z:50,s:'Sn',n:'Tin',c:'post-transition'},
+        {z:51,s:'Sb',n:'Antimony',c:'metalloid'},{z:52,s:'Te',n:'Tellurium',c:'metalloid'},{z:53,s:'I',n:'Iodine',c:'halogen'},{z:54,s:'Xe',n:'Xenon',c:'noble'},{z:55,s:'Cs',n:'Cesium',c:'alkali'},{z:56,s:'Ba',n:'Barium',c:'alkaline'},{z:57,s:'La',n:'Lanthanum',c:'lanthanide'},{z:58,s:'Ce',n:'Cerium',c:'lanthanide'},{z:59,s:'Pr',n:'Praseodymium',c:'lanthanide'},{z:60,s:'Nd',n:'Neodymium',c:'lanthanide'},
+        {z:74,s:'W',n:'Tungsten',c:'transition'},{z:79,s:'Au',n:'Gold',c:'transition'},{z:80,s:'Hg',n:'Mercury',c:'transition'},{z:82,s:'Pb',n:'Lead',c:'post-transition'},{z:92,s:'U',n:'Uranium',c:'actinide'},{z:118,s:'Og',n:'Oganesson',c:'noble'}
+        // ... Logic adds the rest dynamically if missing ...
+    ];
+
+    // Ensure all 118 exist in the data model
+    for(let i=1; i<=118; i++){
+        if(!FULL_PERIODIC_TABLE.find(e => e.z === i)) {
+            FULL_PERIODIC_TABLE.push({z:i, s:`E${i}`, n:`Element ${i}`, c:'unknown'});
+        }
+    }
+
+    let state = {
+        contents: {},
+        temp: 25,
+        discoveries: new Set()
+    };
+
+    function init() {
+        renderGrid(FULL_PERIODIC_TABLE);
+    }
+
+    function renderGrid(elements) {
+        const grid = document.getElementById('element-grid');
+        grid.innerHTML = '';
+        elements.sort((a,b) => a.z - b.z).forEach(el => {
+            const card = document.createElement('div');
+            card.className = `el-card cat-${el.c} ${el.z > 83 ? 'radioactive' : ''}`;
+            card.draggable = true;
+            card.innerHTML = `<span class="el-z">${el.z}</span><span class="el-sym">${el.s}</span><span class="el-name">${el.n}</span>`;
+            card.ondragstart = (e) => e.dataTransfer.setData("text", el.s);
+            grid.appendChild(card);
+        });
+    }
+
+    function handleDrop(e) {
+        const sym = e.dataTransfer.getData("text");
+        state.contents[sym] = (state.contents[sym] || 0) + 1;
+        updateExperiment();
+    }
+
+    function updateTemp(val) {
+        state.temp = parseInt(val);
+        document.getElementById('temp-display').innerText = val;
+        updateExperiment();
+    }
+
+    function clearVessel() {
+        state.contents = {};
+        updateExperiment();
+    }
+
+    function updateExperiment() {
+        // 1. Update Inventory HUD
+        const inv = document.getElementById('inventory');
+        const active = Object.entries(state.contents).filter(([_,c]) => c > 0);
+        inv.innerHTML = active.length ? active.map(([s,c]) => `<strong>${s}</strong>: ${c}`).join('<br>') : "Empty";
+
+        // 2. Liquid Visuals
+        const liq = document.getElementById('vessel-liquid');
+        const totalAtoms = active.reduce((a,b) => a + b[1], 0);
+        liq.style.height = Math.min(90, totalAtoms * 10) + '%';
+        
+        // 3. Reaction Engine
+        const result = calculateReaction(state.contents, state.temp);
+        
+        document.getElementById('result-formula').innerText = result.f;
+        document.getElementById('result-name').innerText = result.name;
+        document.getElementById('result-desc').innerText = result.desc;
+        liq.style.background = result.color;
+
+        if (result.name !== "Inert Mixture" && result.name !== "Laboratory Idle") {
+            logDiscovery(result);
+        }
+    }
+
+    function calculateReaction(contents, temp) {
+        const atoms = Object.keys(contents).filter(k => contents[k] > 0);
+        if (atoms.length === 0) return { f: "---", name: "Laboratory Idle", desc: "Add elements to start.", color: "transparent" };
+
+        const count = (s) => contents[s] || 0;
+        
+        // SPECIFIC HARD-CODED RECIPES (HIGHEST PRIORITY)
+        if (count('H')===2 && count('O')===1) return { f: "H₂O", name: "Water", color: "#00aaff88", desc: "Pure distilled water. The universal solvent." };
+        if (count('Na')===1 && count('Cl')===1) return { f: "NaCl", name: "Table Salt", color: "#ffffff", desc: "Sodium Chloride. Essential mineral." };
+        if (count('Cu')===9 && count('Sn')===1 && temp >= 900) return { f: "Bronze", name: "Bronze", color: "#cd7f32", desc: "A historic alloy of copper and tin." };
+        if (count('Fe')===9 && count('C')===1 && temp >= 1500) return { f: "Steel", name: "Steel", color: "#708090", desc: "Carbon-strengthened iron alloy." };
+        if (count('W')===1 && count('C')===1 && temp >= 2800) return { f: "WC", name: "Tungsten Carbide", color: "#333", desc: "Extremely hard material used in cutting tools." };
+        if (count('Au')===1 && count('Ag')===1 && temp >= 1000) return { f: "Electrum", name: "Electrum", color: "#e5e4e2", desc: "Noble alloy of gold and silver." };
+        if (count('H')===2 && count('S')===1 && count('O')===4) return { f: "H₂SO₄", name: "Sulfuric Acid", color: "#ffcc0088", desc: "Extremely corrosive oil of vitriol." };
+
+        // CATEGORICAL LOGIC (MEDIUM PRIORITY)
+        
+        // Metals + Oxygen = Oxides
+        if (atoms.length === 2 && atoms.includes('O')) {
+            const metal = atoms.find(a => a !== 'O');
+            const metalData = FULL_PERIODIC_TABLE.find(e => e.s === metal);
+            if (['transition', 'alkali', 'alkaline', 'post-transition'].includes(metalData.c)) {
+                return { f: `${metal}Oₓ`, name: `${metalData.n} Oxide`, color: "#554433", desc: `Product of ${metalData.n} oxidation.` };
+            }
+        }
+
+        // Metallurgy (Any two transition metals)
+        if (atoms.length >= 2 && atoms.every(a => ['transition', 'lanthanide', 'actinide'].includes(FULL_PERIODIC_TABLE.find(e=>e.s===a).c))) {
+            if (temp >= 1200) {
+                return { f: atoms.join(''), name: "Custom Super-Alloy", color: "#b0b0b0", desc: "A unique blend of high-strength transition metals." };
+            } else {
+                return { f: "???", name: "Cold Metal Mix", color: "#444", desc: "Increase temperature to melt and fuse these metals." };
+            }
+        }
+
+        // Halide Salts
+        if (atoms.length === 2 && (atoms.includes('Cl') || atoms.includes('F'))) {
+            const halogen = atoms.includes('Cl') ? 'Cl' : 'F';
+            const other = atoms.find(a => a !== halogen);
+            const otherData = FULL_PERIODIC_TABLE.find(e => e.s === other);
+            return { f: `${other}${halogen}`, name: `${otherData.n} ${halogen === 'Cl' ? 'Chloride' : 'Fluoride'}`, color: "#e0e0e0", desc: "A crystalline halide salt." };
+        }
+
+        // Organics (Carbon + Hydrogen + Oxygen)
+        if (atoms.includes('C') && atoms.includes('H')) {
+            return { f: "CₓHᵧOᶻ", name: "Organic Compound", color: "#88cc8844", desc: "A hydrocarbon or carbohydrate chain." };
+        }
+
+        return { f: "MIX", name: "Inert Mixture", color: "rgba(255,255,255,0.1)", desc: "These elements are coexisting but not reacting. Try changing the temperature or ratios." };
+    }
+
+    function logDiscovery(item) {
+        if (state.discoveries.has(item.name)) return;
+        state.discoveries.add(item.name);
+        
+        const container = document.getElementById('log-container');
+        const empty = document.getElementById('empty-msg');
+        if (empty) empty.remove();
+
+        const div = document.createElement('div');
+        div.className = 'log-item';
+        div.innerHTML = `<strong>${item.name}</strong> (${item.f})<br><small>${item.desc}</small>`;
+        container.prepend(div);
+    }
+
+    function filterElements(q) {
+        const filtered = FULL_PERIODIC_TABLE.filter(e => 
+            e.n.toLowerCase().includes(q.toLowerCase()) || 
+            e.s.toLowerCase().includes(q.toLowerCase()) ||
+            e.z.toString() === q
+        );
+        renderGrid(filtered);
+    }
+
+    function purgeDiscoveries() {
+        state.discoveries.clear();
+        document.getElementById('log-container').innerHTML = '<p id="empty-msg" style="text-align:center; opacity:0.3; margin-top:50px;">No discoveries yet.</p>';
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>

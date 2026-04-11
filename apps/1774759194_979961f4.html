@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>皮卡丘猎手</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #1a1a2e;
+        }
+        canvas {
+            border: 3px solid #ffcb05;
+            background: #ffffff;
+        }
+    </style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+
+<script>
+// 获取画布和上下文
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// 画布尺寸设置
+canvas.width = 800;
+canvas.height = 600;
+
+// 游戏核心数据
+const game = {
+    score: 0,
+    gameStart: false,
+    pikachu: {
+        x: canvas.width / 2,
+        y: 80,
+        size: 40,
+        speed: 3,
+        direction: 1
+    },
+    aim: {
+        x: 0,
+        y: 0,
+        active: false
+    },
+    pokeball: {
+        x: 0,
+        y: canvas.height,
+        size: 25,
+        speed: 5,
+        active: false,
+        targetX: 0,
+        targetY: 0
+    },
+    skillPika: {
+        x: 0,
+        y: canvas.height,
+        size: 40,
+        speed: 6,
+        active: false,
+        attack: false
+    }
+};
+
+// 游戏主循环
+function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    if (!game.gameStart) {
+        drawStartScreen();
+        requestAnimationFrame(gameLoop);
+        return;
+    }
+    
+    drawUI();
+    movePikachu();
+    drawCutePikachu();
+    drawSkillButton();
+    
+    if (game.aim.active) drawAim();
+    
+    if (game.pokeball.active) {
+        movePokeball();
+        drawPokeball();
+        checkPokeballHit();
+    }
+    
+    if (game.skillPika.active) {
+        moveSkillPika();
+        drawSkillPika();
+        if (game.skillPika.attack) {
+            drawLightningSymbol(); // ✅ 放电：显示闪电符号
+            checkSkillHit();
+        }
+    }
+    
+    requestAnimationFrame(gameLoop);
+}
+
+// 开始界面
+function drawStartScreen() {
+    ctx.fillStyle = '#ff0000';
+    ctx.font = '48px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('皮卡丘猎手', canvas.width / 2, 200);
+    
+    ctx.font = '28px Arial';
+    ctx.fillText('点击任意位置开始游戏', canvas.width / 2, 300);
+    
+    ctx.font = '18px Arial';
+    ctx.fillText('右键点击瞄准 → 再次点击发射精灵球', canvas.width / 2, 380);
+    ctx.fillText('点击底部精灵球图标召唤皮卡丘放电', canvas.width / 2, 420);
+}
+
+// UI
+function drawUI() {
+    ctx.fillStyle = '#ff0000';
+    ctx.font = '24px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(`分数: ${game.score}`, 20, 40);
+}
+
+// 皮卡丘移动
+function movePikachu() {
+    game.pikachu.x += game.pikachu.speed * game.pikachu.direction;
+    if (game.pikachu.x <= game.pikachu.size || game.pikachu.x >= canvas.width - game.pikachu.size) {
+        game.pikachu.direction *= -1;
+    }
+}
+
+// 可爱皮卡丘
+function drawCutePikachu() {
+    const x = game.pikachu.x;
+    const y = game.pikachu.y;
+    const size = game.pikachu.size;
+
+    ctx.fillStyle = '#FFCB05';
+    ctx.beginPath();
+    ctx.ellipse(x, y, size, size * 0.9, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    ctx.moveTo(x - 20, y - 25);
+    ctx.lineTo(x - 28, y - 50);
+    ctx.lineTo(x - 12, y - 45);
+    ctx.fill();
+    ctx.fillStyle = '#FFCB05';
+    ctx.beginPath();
+    ctx.moveTo(x - 20, y - 25);
+    ctx.lineTo(x - 24, y - 45);
+    ctx.lineTo(x - 12, y - 45);
+    ctx.fill();
+
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    ctx.moveTo(x + 20, y - 25);
+    ctx.lineTo(x + 28, y - 50);
+    ctx.lineTo(x + 12, y - 45);
+    ctx.fill();
+    ctx.fillStyle = '#FFCB05';
+    ctx.beginPath();
+    ctx.moveTo(x + 20, y - 25);
+    ctx.lineTo(x + 24, y - 45);
+    ctx.lineTo(x + 12, y - 45);
+    ctx.fill();
+
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(x - 8, y - 5, 4, 0, Math.PI*2);
+    ctx.arc(x + 8, y - 5, 4, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = '#FF6B6B';
+    ctx.beginPath();
+    ctx.arc(x - 16, y + 8, 7, 0, Math.PI*2);
+    ctx.arc(x + 16, y + 8, 7, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(x, y + 6, 3, 0, Math.PI);
+    ctx.fill();
+}
+
+// 瞄准十字
+function drawAim() {
+    ctx.strokeStyle = '#ff0000';
+    ctx.lineWidth = 3;
+    const size = 15;
+    ctx.beginPath();
+    ctx.moveTo(game.aim.x - size, game.aim.y);
+    ctx.lineTo(game.aim.x + size, game.aim.y);
+    ctx.moveTo(game.aim.x, game.aim.y - size);
+    ctx.lineTo(game.aim.x, game.aim.y + size);
+    ctx.stroke();
+}
+
+// 精灵球
+function drawPokeball() {
+    ctx.fillStyle = '#e63946';
+    ctx.beginPath();
+    ctx.arc(game.pokeball.x, game.pokeball.y, game.pokeball.size, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(game.pokeball.x, game.pokeball.y, game.pokeball.size, 0, Math.PI);
+    ctx.fill();
+    
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    ctx.arc(game.pokeball.x, game.pokeball.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+// 移动精灵球
+function movePokeball() {
+    game.pokeball.x += (game.pokeball.targetX - game.pokeball.x) * 0.15;
+    game.pokeball.y += (game.pokeball.targetY - game.pokeball.y) * 0.15;
+    
+    const dist = Math.sqrt(
+        Math.pow(game.pokeball.x - game.pokeball.targetX, 2) +
+        Math.pow(game.pokeball.y - game.pokeball.targetY, 2)
+    );
+    
+    if (dist < 5 || game.pokeball.y < 0) {
+        game.pokeball.active = false;
+    }
+}
+
+// 检测命中
+function checkPokeballHit() {
+    const dx = game.pokeball.x - game.pikachu.x;
+    const dy = game.pokeball.y - game.pikachu.y;
+    const distance = Math.sqrt(dx*dx + dy*dy);
+    
+    if (distance < game.pikachu.size + game.pokeball.size) {
+        game.score += 1;
+        resetPikachu();
+        game.pokeball.active = false;
+    }
+}
+
+// 技能按钮
+function drawSkillButton() {
+    ctx.fillStyle = '#e63946';
+    ctx.beginPath();
+    ctx.arc(canvas.width / 2, canvas.height - 40, 30, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(canvas.width / 2, canvas.height - 40, 30, 0, Math.PI);
+    ctx.fill();
+}
+
+// 技能皮卡丘
+function drawSkillPika() {
+    drawCutePikachuAt(game.skillPika.x, game.skillPika.y);
+}
+
+function drawCutePikachuAt(x, y) {
+    const size = 40;
+    ctx.fillStyle = '#FFCB05';
+    ctx.beginPath();
+    ctx.ellipse(x, y, size, size*0.9, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.moveTo(x-20,y-25); ctx.lineTo(x-28,y-50); ctx.lineTo(x-12,y-45); ctx.fill();
+    ctx.fillStyle = '#FFCB05';
+    ctx.beginPath(); ctx.moveTo(x-20,y-25); ctx.lineTo(x-24,y-45); ctx.lineTo(x-12,y-45); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.moveTo(x+20,y-25); ctx.lineTo(x+28,y-50); ctx.lineTo(x+12,y-45); ctx.fill();
+    ctx.fillStyle = '#FFCB05';
+    ctx.beginPath(); ctx.moveTo(x+20,y-25); ctx.lineTo(x+24,y-45); ctx.lineTo(x+12,y-45); ctx.fill();
+
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(x-8,y-5,4,0,Math.PI*2); ctx.arc(x+8,y-5,4,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#FF6B6B';
+    ctx.beginPath(); ctx.arc(x-16,y+8,7,0,Math.PI*2); ctx.arc(x+16,y+8,7,0,Math.PI*2); ctx.fill();
+}
+
+// 移动技能皮卡丘
+function moveSkillPika() {
+    if (!game.skillPika.attack) {
+        game.skillPika.x += (game.pikachu.x - game.skillPika.x) * 0.1;
+        game.skillPika.y -= game.skillPika.speed;
+        if (game.skillPika.y < game.pikachu.y + 80) {
+            game.skillPika.attack = true;
+        }
+    }
+}
+
+// ==============================================
+// ✅ 最终版：直接显示巨大黄色闪电符号 ⚡
+// ==============================================
+function drawLightningSymbol() {
+    ctx.fillStyle = '#ffdd00';
+    ctx.font = '80px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚡', game.pikachu.x, game.pikachu.y + 20);
+}
+
+// 技能命中
+function checkSkillHit() {
+    game.score += 2;
+    resetPikachu();
+    game.skillPika.active = false;
+    game.skillPika.attack = false;
+}
+
+// 重置皮卡丘
+function resetPikachu() {
+    game.pikachu.x = Math.random() * (canvas.width - 80) + 40;
+    game.pikachu.direction *= -1;
+}
+
+// 右键瞄准
+canvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (!game.gameStart) return;
+    const rect = canvas.getBoundingClientRect();
+    game.aim.x = e.clientX - rect.left;
+    game.aim.y = e.clientY - rect.top;
+    game.aim.active = true;
+});
+
+// 左键点击
+canvas.addEventListener('click', (e) => {
+    if (!game.gameStart) {
+        game.gameStart = true;
+        return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    if (game.aim.active) {
+        const aimDist = Math.hypot(clickX - game.aim.x, clickY - game.aim.y);
+        if (aimDist < 20) {
+            game.pokeball.active = true;
+            game.pokeball.x = canvas.width / 2;
+            game.pokeball.y = canvas.height;
+            game.pokeball.targetX = game.aim.x;
+            game.pokeball.targetY = game.aim.y;
+            game.aim.active = false;
+        }
+    }
+
+    const btnDist = Math.hypot(clickX - canvas.width/2, clickY - (canvas.height-40));
+    if (btnDist < 30 && !game.skillPika.active) {
+        game.skillPika.active = true;
+        game.skillPika.x = canvas.width / 2;
+        game.skillPika.y = canvas.height;
+        game.skillPika.attack = false;
+    }
+});
+
+gameLoop();
+</script>
+</body>
+</html>

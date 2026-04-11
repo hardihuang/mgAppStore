@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>破甲先锋 - 无限子弹版</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #111; }
+        canvas { border: 2px solid #333; background: #0a0a0a; }
+    </style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+// ========== 游戏基础配置 ==========
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+canvas.width = 800;
+canvas.height = 600;
+
+// 游戏状态
+const game = {
+    state: 'start', // start / playing / over
+    score: 0,
+    highScore: localStorage.getItem('highScore') || 0,
+    screenEffect: 0, // 屏幕边缘特效
+    effectColor: ''
+};
+
+// 玩家配置
+const player = {
+    x: canvas.width / 2,
+    y: canvas.height / 2,
+    size: 18,
+    speed: 4,
+    hp: 100,
+    maxHp: 100,
+    color: '#00ff00'
+};
+
+// 子弹系统
+const bullets = [];
+const enemyBullets = [];
+let bulletCooldown = 0;
+const BULLET_SPEED = 8;
+const BULLET_COOLDOWN = 100; // 🔥 1秒10发（100ms一发）
+
+// 弹药系统（无限子弹）
+const ammo = {
+    max: Infinity,
+    current: Infinity,
+    reloading: false,
+    reloadTime: 0,
+    reloadTimer: 0
+};
+
+// 射击模式
+const fireMode = {
+    burst: false,
+    auto: false
+};
+
+// 敌人系统
+const enemies = [];
+const ENEMY_SIZE = 20;
+const ENEMY_SPEED = 1.5;
+const ENEMY_HP_BASE = 50;
+const ENEMY_HP_HARD = 100;
+const ENEMY_SHOOT_INTERVAL = 3000;
+let enemySpawnTimer = 0;
+
+// 炸药系统
+const explosives = [];
+const EXPLOSIVE_DAMAGE = 20;
+
+// 墙体系统
+const walls = [];
+const WALL_COUNT = 15;
+const WALL_SIZE = 40;
+
+// 按键监听
+const keys = {
+    w: false, a: false, s: false, d: false,
+    k: false, l: false, h: false,
+    mouseDown: false
+};
+let mouse = { x: 0, y: 0 };
+
+// ========== 初始化墙体 ==========
+function initWalls() {
+    walls.length = 0;
+    for (let i = 0; i < WALL_COUNT; i++) {
+        walls.push({
+            x: Math.random() * (canvas.width - WALL_SIZE),
+            y: Math.random() * (canvas.height - WALL_SIZE),
+            size: WALL_SIZE
+        });
+    }
+}
+
+// ========== 碰撞检测 ==========
+function checkCollision(a, b, sizeA, sizeB) {
+    return Math.abs(a.x - b.x) < (sizeA + sizeB) &&
+           Math.abs(a.y - b.y) < (sizeA + sizeB);
+}
+
+// 墙体碰撞阻挡
+function isWallCollision(x, y, size) {
+    return walls.some(w => 
+        x < w.x + w.size &&
+        x + size > w.x &&
+        y < w.y + w.size &&
+        y + size > w.y
+    );
+}
+
+// ========== 玩家移动 ==========
+function movePlayer() {
+    let nx = player.x, ny = player.y;
+    if (keys.w) ny -= player.speed;
+    if (keys.s) ny += player.speed;
+    if (keys.a) nx -= player.speed;
+    if (keys.d) nx += player.speed;
+    
+    if (nx > 0 && nx < canvas.width - player.size && !isWallCollision(nx, player.y, player.size)) {
+        player.x = nx;
+    }
+    if (ny > 0 && ny < canvas.height - player.size && !isWallCollision(player.x, ny, player.size)) {
+        player.y = ny;
+    }
+}
+
+// ========== 射击逻辑 ==========
+function shootBullet() {
+    if (Date.now() - bulletCooldown < BULLET_COOLDOWN) return;
+
+    const dx = mouse.x - player.x;
+    const dy = mouse.y - player.y;
+    const dist = Math.hypot(dx, dy);
+    bullets.push({
+        x: player.x,
+        y: player.y,
+        vx: (dx / dist) * BULLET_SPEED,
+        vy: (dy / dist) * BULLET_SPEED
+    });
+
+    bulletCooldown = Date.now();
+}
+
+// ========== 换弹（禁用） ==========
+function reload() {
+    return;
+}
+
+// ========== 生成敌人 ==========
+function spawnEnemy() {
+    if (game.state !== 'playing') return;
+    let x, y;
+    do {
+        x = Math.random() * (canvas.width - ENEMY_SIZE);
+        y = Math.random() * (canvas.height - ENEMY_SIZE);
+    } while (isWallCollision(x, y, ENEMY_SIZE));
+
+    enemies.push({
+        x, y,
+        hp: game.score >= 150 ? ENEMY_HP_HARD : ENEMY_HP_BASE,
+        shootTimer: Date.now()
+    });
+}
+
+// ========== 敌人逻辑 ==========
+function updateEnemies() {
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        const e = enemies[i];
+        const dx = player.x - e.x;
+        const dy = player.y - e.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 50 && !isWallCollision(e.x + (dx/dist)*ENEMY_SPEED, e.y + (dy/dist)*ENEMY_SPEED, ENEMY_SIZE)) {
+            e.x += (dx / dist) * ENEMY_SPEED;
+            e.y += (dy / dist) * ENEMY_SPEED;
+        }
+
+        if (Date.now() - e.shootTimer > ENEMY_SHOOT_INTERVAL) {
+            const edx = player.x - e.x;
+            const edy = player.y - e.y;
+            const edist = Math.hypot(edx, edy);
+            enemyBullets.push({
+                x: e.x, y: e.y,
+                vx: (edx / edist) * 6,
+                vy: (edy / edist) * 6
+            });
+            e.shootTimer = Date.now();
+        }
+    }
+}
+
+// ========== 放置炸药 ==========
+function placeExplosive() {
+    const dx = mouse.x - player.x;
+    const dy = mouse.y - player.y;
+    const dist = Math.hypot(dx, dy);
+    const fx = player.x + (dx/dist || 0) * 30;
+    const fy = player.y + (dy/dist || 0) * 30;
+    explosives.push({ x: fx, y: fy });
+}
+
+// ========== 子弹更新（无限距离） ==========
+function updateBullets() {
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.x += b.vx; b.y += b.vy;
+        
+        if (walls.some(w => checkCollision(b, w, 3, w.size))) {
+            bullets.splice(i, 1);
+            continue;
+        }
+        
+        for (let j = enemies.length - 1; j >= 0; j--) {
+            if (checkCollision(b, enemies[j], 3, ENEMY_SIZE)) {
+                enemies[j].hp -= 10;
+                bullets.splice(i, 1);
+                if (enemies[j].hp <= 0) {
+                    game.score += enemies[j].hp === ENEMY_HP_HARD ? 30 : 10;
+                    if (game.score > game.highScore) {
+                        game.highScore = game.score;
+                        localStorage.setItem('highScore', game.highScore);
+                    }
+                    enemies.splice(j, 1);
+                    game.screenEffect = 10;
+                    game.effectColor = '#0f0';
+                }
+                break;
+            }
+        }
+    }
+
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        const b = enemyBullets[i];
+        b.x += b.vx; b.y += b.vy;
+
+        let needRemove = false;
+        if (walls.some(w => checkCollision(b, w, 3, w.size))) needRemove = true;
+        else if (checkCollision(b, player, 3, player.size)) {
+            player.hp -= 1;
+            needRemove = true;
+            game.screenEffect = 10;
+            game.effectColor = '#f00';
+            if (player.hp <= 0) game.state = 'over';
+        }
+
+        if (needRemove) enemyBullets.splice(i, 1);
+    }
+}
+
+// ========== 炸药伤害 ==========
+function updateExplosives() {
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        for (let j = explosives.length - 1; j >= 0; j--) {
+            if (checkCollision(enemies[i], explosives[j], ENEMY_SIZE, 8)) {
+                enemies[i].hp -= EXPLOSIVE_DAMAGE;
+                explosives.splice(j, 1);
+                if (enemies[i].hp <= 0) {
+                    game.score += enemies[i].hp === ENEMY_HP_HARD ? 30 : 10;
+                    enemies.splice(i, 1);
+                    game.screenEffect = 10;
+                    game.effectColor = '#0f0';
+                }
+                break;
+            }
+        }
+    }
+}
+
+// ========== 渲染 ==========
+function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = '#444';
+    walls.forEach(w => ctx.fillRect(w.x, w.y, w.size, w.size));
+
+    ctx.fillStyle = player.color;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#fff';
+    bullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI*2); ctx.fill(); });
+    ctx.fillStyle = '#ff3333';
+    enemyBullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI*2); ctx.fill(); });
+
+    enemies.forEach(e => {
+        ctx.fillStyle = e.hp > 50 ? '#ff8800' : '#ff0000';
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, ENEMY_SIZE, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    ctx.fillStyle = '#ffff00';
+    explosives.forEach(ex => { ctx.beginPath(); ctx.arc(ex.x, ex.y, 8, 0, Math.PI*2); ctx.fill(); });
+
+    if (game.screenEffect > 0) {
+        ctx.strokeStyle = game.effectColor;
+        ctx.lineWidth = 8;
+        ctx.strokeRect(4, 4, canvas.width-8, canvas.height-8);
+        game.screenEffect--;
+    }
+
+    const barW = 300, barH = 20;
+    const barX = canvas.width/2 - barW/2;
+    ctx.fillStyle = '#300';
+    ctx.fillRect(barX, 10, barW, barH);
+    ctx.fillStyle = '#0a0';
+    ctx.fillRect(barX, 10, barW * (player.hp / player.maxHp), barH);
+    ctx.fillStyle = '#fff';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${player.hp}`, canvas.width/2, 25);
+
+    ctx.textAlign = 'left';
+    ctx.fillText(`分数: ${game.score}  最高分: ${game.highScore}`, 10, 30);
+    ctx.fillText(`模式: ${fireMode.auto ? '连发' : fireMode.burst ? '点射' : '普通'}`, 10, 50);
+
+    if (game.state === 'start') {
+        ctx.fillStyle = '#00ff88';
+        ctx.font = '48px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('破甲先锋', canvas.width/2, canvas.height/2 - 40);
+        ctx.font = '24px Arial';
+        ctx.fillText('点击开始游戏（无限子弹版）', canvas.width/2, canvas.height/2 + 20);
+    }
+
+    if (game.state === 'over') {
+        ctx.fillStyle = '#ff0000';
+        ctx.font = '48px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('你死了！', canvas.width/2, canvas.height/2 - 40);
+        ctx.font = '24px Arial';
+        ctx.fillText(`得分: ${game.score}`, canvas.width/2, canvas.height/2 + 10);
+        ctx.fillText('点击重启', canvas.width/2, canvas.height/2 + 50);
+    }
+}
+
+// ========== 游戏主循环 ==========
+function gameLoop() {
+    if (game.state === 'playing') {
+        movePlayer();
+        updateBullets();
+        updateEnemies();
+        updateExplosives();
+
+        if (keys.mouseDown && fireMode.auto) shootBullet();
+
+        if (Date.now() - enemySpawnTimer > 1500) {
+            spawnEnemy();
+            enemySpawnTimer = Date.now();
+        }
+    }
+    render();
+    requestAnimationFrame(gameLoop);
+}
+
+// ========== 事件监听 ==========
+canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - rect.left;
+    mouse.y = e.clientY - rect.top;
+});
+
+canvas.addEventListener('mousedown', () => {
+    keys.mouseDown = true;
+    if (game.state === 'start') {
+        game.state = 'playing';
+        initWalls();
+    }
+    if (game.state === 'over') {
+        player.hp = player.maxHp;
+        game.score = 0;
+        bullets.length = enemyBullets.length = enemies.length = explosives.length = 0;
+        game.state = 'playing';
+        initWalls();
+    }
+    shootBullet();
+});
+
+canvas.addEventListener('mouseup', () => keys.mouseDown = false);
+
+document.addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+    keys[k] = true;
+    if (k === 'h') placeExplosive();
+    if (k === 'k') { fireMode.burst = true; fireMode.auto = false; }
+    if (k === 'l') { fireMode.auto = true; fireMode.burst = false; }
+});
+
+document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+// 启动
+initWalls();
+gameLoop();
+</script>
+</body>
+</html>

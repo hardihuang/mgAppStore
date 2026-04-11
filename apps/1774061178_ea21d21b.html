@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Canvas Racing Game</title>
+  <style>
+    :root {
+      --bg-1: #0f3d2e;
+      --bg-2: #1f6f4a;
+      --track: #2f3036;
+      --lane: #f7f3c6;
+      --hud: #ffffff;
+      --hud-shadow: rgba(0, 0, 0, 0.45);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      background: radial-gradient(circle at 25% 20%, #2f8a5e, var(--bg-1) 50%, #0a2319);
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const TAU = Math.PI * 2;
+    const START_ANGLE = -Math.PI / 2;
+    const TARGET_LAPS = 3;
+    const TRACK_SAMPLES = 300;
+
+    let width = 0;
+    let height = 0;
+    let cx = 0;
+    let cy = 0;
+    let baseTrackR = 0;
+    let trackHalfWidth = 0;
+    let currentTrackIndex = 0;
+
+    const tracks = [
+      {
+        name: "Meadow Ring",
+        difficulty: "Easy",
+        widthScale: 0.18,
+        gripPenalty: 0.0,
+        aiPace: 0.96,
+        waves: [
+          { amp: 0.06, freq: 2, phase: 0.3 },
+          { amp: 0.04, freq: 3, phase: -1.1 }
+        ]
+      },
+      {
+        name: "Sunrise Oval",
+        difficulty: "Easy",
+        widthScale: 0.19,
+        gripPenalty: -0.03,
+        aiPace: 0.92,
+        waves: [
+          { amp: 0.04, freq: 2, phase: 0.7 },
+          { amp: 0.02, freq: 4, phase: -0.5 }
+        ]
+      },
+      {
+        name: "Harbor Glide",
+        difficulty: "Easy",
+        widthScale: 0.195,
+        gripPenalty: -0.04,
+        aiPace: 0.9,
+        waves: [
+          { amp: 0.03, freq: 1, phase: 0.2 },
+          { amp: 0.03, freq: 3, phase: 1.2 }
+        ]
+      },
+      {
+        name: "Breeze Circuit",
+        difficulty: "Easy",
+        widthScale: 0.185,
+        gripPenalty: -0.02,
+        aiPace: 0.94,
+        waves: [
+          { amp: 0.05, freq: 2, phase: -0.4 },
+          { amp: 0.03, freq: 5, phase: 2.1 }
+        ]
+      },
+      {
+        name: "Serpent Bend",
+        difficulty: "Medium",
+        widthScale: 0.155,
+        gripPenalty: 0.09,
+        aiPace: 1.02,
+        waves: [
+          { amp: 0.11, freq: 2, phase: 0.1 },
+          { amp: 0.08, freq: 5, phase: 1.8 }
+        ]
+      },
+      {
+        name: "Knife Edge",
+        difficulty: "Hard",
+        widthScale: 0.132,
+        gripPenalty: 0.17,
+        aiPace: 1.08,
+        waves: [
+          { amp: 0.14, freq: 3, phase: 0.5 },
+          { amp: 0.10, freq: 6, phase: -1.6 },
+          { amp: 0.05, freq: 9, phase: 0.8 }
+        ]
+      },
+      {
+        name: "Vortex Gauntlet",
+        difficulty: "Extreme",
+        widthScale: 0.118,
+        gripPenalty: 0.22,
+        aiPace: 1.13,
+        waves: [
+          { amp: 0.18, freq: 2, phase: -0.2 },
+          { amp: 0.12, freq: 7, phase: 1.2 },
+          { amp: 0.08, freq: 11, phase: -2.3 }
+        ]
+      },
+      {
+        name: "Switchback Spine",
+        difficulty: "Extreme",
+        widthScale: 0.113,
+        gripPenalty: 0.25,
+        aiPace: 1.15,
+        waves: [
+          { amp: 0.21, freq: 4, phase: 0.4 },
+          { amp: 0.08, freq: 9, phase: -1.1 }
+        ]
+      },
+      {
+        name: "Cyclone Teeth",
+        difficulty: "Nightmare",
+        widthScale: 0.108,
+        gripPenalty: 0.28,
+        aiPace: 1.18,
+        waves: [
+          { amp: 0.16, freq: 3, phase: -0.8 },
+          { amp: 0.11, freq: 8, phase: 1.5 },
+          { amp: 0.09, freq: 13, phase: -2.7 }
+        ]
+      },
+      {
+        name: "Razor Pulse",
+        difficulty: "Nightmare",
+        widthScale: 0.104,
+        gripPenalty: 0.30,
+        aiPace: 1.2,
+        waves: [
+          { amp: 0.20, freq: 5, phase: 0.2 },
+          { amp: 0.13, freq: 10, phase: 2.2 },
+          { amp: 0.06, freq: 15, phase: -1.9 }
+        ]
+      },
+      {
+        name: "Fracture Loop",
+        difficulty: "Insane",
+        widthScale: 0.1,
+        gripPenalty: 0.34,
+        aiPace: 1.23,
+        waves: [
+          { amp: 0.24, freq: 4, phase: 0.1 },
+          { amp: 0.14, freq: 9, phase: -2.1 },
+          { amp: 0.08, freq: 14, phase: 1.3 }
+        ]
+      }
+    ];
+
+    const keys = new Set();
+
+    const player = {
+      x: 0,
+      y: 0,
+      heading: 0,
+      speed: 0,
+      color: "#40d0ff",
+      angle: START_ANGLE,
+      lastAngle: START_ANGLE,
+      unwrappedAngle: 0,
+      laps: 0,
+      done: false,
+      finishMs: null,
+      name: "You"
+    };
+
+    const aiCars = [
+      { color: "#ff6b6b", laneOffset: -22, progress: 0, speedLps: 0.108, wobble: 0.008, name: "Comet", laps: 0, done: false, finishMs: null },
+      { color: "#ffd93d", laneOffset: 0, progress: 0, speedLps: 0.103, wobble: 0.012, name: "Falcon", laps: 0, done: false, finishMs: null },
+      { color: "#7dff8a", laneOffset: 22, progress: 0, speedLps: 0.099, wobble: 0.010, name: "Razor", laps: 0, done: false, finishMs: null }
+    ];
+
+    let raceStartMs = 0;
+    let raceOver = false;
+    let winner = "";
+
+    function currentTrack() {
+      return tracks[currentTrackIndex];
+    }
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      width = canvas.width;
+      height = canvas.height;
+      cx = width / 2;
+      cy = height / 2;
+      baseTrackR = Math.max(140, Math.min(width, height) * 0.31);
+      trackHalfWidth = baseTrackR * currentTrack().widthScale;
+      resetRace();
+    }
+
+    function setTrack(index) {
+      currentTrackIndex = clamp(index, 0, tracks.length - 1);
+      trackHalfWidth = baseTrackR * currentTrack().widthScale;
+      resetRace();
+    }
+
+    function cycleTrack(delta) {
+      const next = (currentTrackIndex + delta + tracks.length) % tracks.length;
+      setTrack(next);
+    }
+
+    function trackRadiusAt(angle, edgeOffset = 0) {
+      const t = currentTrack();
+      let r = baseTrackR;
+      for (const wave of t.waves) {
+        r += baseTrackR * wave.amp * Math.sin(wave.freq * angle + wave.phase);
+      }
+      return r + edgeOffset;
+    }
+
+    function trackRadiusDerivative(angle) {
+      const t = currentTrack();
+      let d = 0;
+      for (const wave of t.waves) {
+        d += baseTrackR * wave.amp * wave.freq * Math.cos(wave.freq * angle + wave.phase);
+      }
+      return d;
+    }
+
+    function pointAt(angle, laneOffset = 0) {
+      const r = trackRadiusAt(angle, laneOffset);
+      return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r, r };
+    }
+
+    function tangentAt(angle, laneOffset = 0) {
+      const eps = 0.01;
+      const a = pointAt(angle - eps, laneOffset);
+      const b = pointAt(angle + eps, laneOffset);
+      return Math.atan2(b.y - a.y, b.x - a.x);
+    }
+
+    function resetRace() {
+      const start = pointAt(START_ANGLE, 0);
+      player.x = start.x;
+      player.y = start.y;
+      player.heading = tangentAt(START_ANGLE, 0);
+      player.speed = 0;
+      player.lastAngle = START_ANGLE;
+      player.unwrappedAngle = 0;
+      player.laps = 0;
+      player.done = false;
+      player.finishMs = null;
+      aiCars.forEach((car, i) => {
+        car.progress = -0.05 * (i + 1);
+        car.laps = 0;
+        car.done = false;
+        car.finishMs = null;
+      });
+      raceStartMs = performance.now();
+      raceOver = false;
+      winner = "";
+    }
+
+    function clamp(n, min, max) {
+      return Math.max(min, Math.min(max, n));
+    }
+
+    function normalizeSigned(angle) {
+      while (angle > Math.PI) angle -= TAU;
+      while (angle < -Math.PI) angle += TAU;
+      return angle;
+    }
+
+    function updatePlayer(dt, nowMs) {
+      if (player.done) return;
+
+      const throttle = keys.has("ArrowUp") || keys.has("w") ? 1 : 0;
+      const brake = keys.has("ArrowDown") || keys.has("s") ? 1 : 0;
+      const steerLeft = keys.has("ArrowLeft") || keys.has("a") ? 1 : 0;
+      const steerRight = keys.has("ArrowRight") || keys.has("d") ? 1 : 0;
+      const steer = steerRight - steerLeft;
+
+      const accel = 280;
+      const brakePower = 340;
+      const drag = 160;
+      const maxSpeed = 300;
+      const reverseSpeed = -120;
+      const localAngle = Math.atan2(player.y - cy, player.x - cx);
+      const curveLoad = Math.abs(trackRadiusDerivative(localAngle)) / Math.max(1, baseTrackR);
+      const grip = clamp(1.15 - curveLoad * 0.22 - currentTrack().gripPenalty, 0.56, 1.15);
+
+      if (throttle) player.speed += accel * dt;
+      if (brake) player.speed -= brakePower * dt;
+
+      if (!throttle && !brake) {
+        if (player.speed > 0) player.speed = Math.max(0, player.speed - drag * dt);
+        if (player.speed < 0) player.speed = Math.min(0, player.speed + drag * dt);
+      }
+
+      player.speed = clamp(player.speed, reverseSpeed, maxSpeed);
+
+      const turnStrength = clamp(Math.abs(player.speed) / 150, 0.25, 1.3) * grip;
+      player.heading += steer * turnStrength * 2.6 * dt * (player.speed >= 0 ? 1 : -1);
+
+      player.x += Math.cos(player.heading) * player.speed * dt;
+      player.y += Math.sin(player.heading) * player.speed * dt;
+
+      const dx = player.x - cx;
+      const dy = player.y - cy;
+      const r = Math.hypot(dx, dy) || 1;
+      const nx = dx / r;
+      const ny = dy / r;
+
+      player.angle = Math.atan2(player.y - cy, player.x - cx);
+      const centerR = trackRadiusAt(player.angle, 0);
+      const roadMin = centerR - trackHalfWidth + 14;
+      const roadMax = centerR + trackHalfWidth - 14;
+
+      if (r < roadMin || r > roadMax) {
+        const targetR = clamp(r, roadMin, roadMax);
+        const push = (targetR - r) * 0.55;
+        player.x += nx * push;
+        player.y += ny * push;
+        player.speed *= 0.88;
+      } else if (r < roadMin + 22 || r > roadMax - 22) {
+        player.speed *= 0.995;
+      }
+
+      const delta = normalizeSigned(player.angle - player.lastAngle);
+      player.unwrappedAngle += delta;
+      player.lastAngle = player.angle;
+      player.laps = Math.max(0, Math.floor(player.unwrappedAngle / TAU));
+
+      if (player.laps >= TARGET_LAPS) {
+        player.done = true;
+        player.finishMs = nowMs - raceStartMs;
+        if (!raceOver) {
+          raceOver = true;
+          winner = player.name;
+        }
+      }
+    }
+
+    function updateAI(dt, nowMs) {
+      aiCars.forEach((car, index) => {
+        if (car.done) return;
+
+        const angle = START_ANGLE + car.progress * TAU;
+        const curveLoad = Math.abs(trackRadiusDerivative(angle)) / Math.max(1, baseTrackR);
+        const pace =
+          (car.speedLps * currentTrack().aiPace) +
+          Math.sin((nowMs * 0.001) + index) * car.wobble;
+        const curvePenalty = clamp(1 - curveLoad * 0.11, 0.82, 1);
+        car.progress += Math.max(0.02, pace * curvePenalty) * dt;
+        car.laps = Math.max(0, Math.floor(car.progress));
+
+        if (car.laps >= TARGET_LAPS) {
+          car.done = true;
+          car.finishMs = nowMs - raceStartMs;
+          if (!raceOver) {
+            raceOver = true;
+            winner = car.name;
+          }
+        }
+      });
+    }
+
+    function drawTrack() {
+      ctx.clearRect(0, 0, width, height);
+
+      const grad = ctx.createLinearGradient(0, 0, width, height);
+      grad.addColorStop(0, "#3c9d68");
+      grad.addColorStop(1, "#0d2e20");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.fillStyle = "#2f3036";
+      ctx.beginPath();
+      for (let i = 0; i <= TRACK_SAMPLES; i++) {
+        const a = START_ANGLE + (i / TRACK_SAMPLES) * TAU;
+        const p = pointAt(a, trackHalfWidth);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      for (let i = TRACK_SAMPLES; i >= 0; i--) {
+        const a = START_ANGLE + (i / TRACK_SAMPLES) * TAU;
+        const p = pointAt(a, -trackHalfWidth);
+        ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([22, 18]);
+      ctx.beginPath();
+      for (let i = 0; i <= TRACK_SAMPLES; i++) {
+        const a = START_ANGLE + (i / TRACK_SAMPLES) * TAU;
+        const p = pointAt(a, 0);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const start = pointAt(START_ANGLE, 0);
+      const heading = tangentAt(START_ANGLE, 0);
+      const tx = Math.cos(heading);
+      const ty = Math.sin(heading);
+      const nx = -ty;
+      const ny = tx;
+      const fx = start.x;
+      const fy = start.y;
+      const lineW = trackHalfWidth * 2;
+      const lineL = 28;
+
+      for (let i = -2; i <= 2; i++) {
+        for (let j = -2; j <= 2; j++) {
+          ctx.fillStyle = (i + j) % 2 ? "#ffffff" : "#1c1d22";
+          ctx.fillRect(
+            fx + nx * i * (lineW / 5) - tx * lineL / 2 + tx * j * (lineL / 5),
+            fy + ny * i * (lineW / 5) - ty * lineL / 2 + ty * j * (lineL / 5),
+            lineL / 5,
+            lineW / 5
+          );
+        }
+      }
+    }
+
+    function drawCar(x, y, heading, color) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(heading);
+      ctx.fillStyle = color;
+      ctx.fillRect(-12, -7, 24, 14);
+      ctx.fillStyle = "#101114";
+      ctx.fillRect(2, -5, 7, 10);
+      ctx.restore();
+    }
+
+    function aiPose(car) {
+      const angle = START_ANGLE + car.progress * TAU;
+      const lanePadding = trackHalfWidth - 16;
+      const laneOffset = clamp(car.laneOffset, -lanePadding, lanePadding);
+      const p = pointAt(angle, laneOffset);
+      return { x: p.x, y: p.y, heading: tangentAt(angle, laneOffset) };
+    }
+
+    function standings() {
+      const all = [
+        { name: player.name, progress: player.unwrappedAngle / TAU, color: player.color },
+        ...aiCars.map((car) => ({ name: car.name, progress: car.progress, color: car.color }))
+      ];
+      all.sort((a, b) => b.progress - a.progress);
+      return all;
+    }
+
+    function drawHud(nowMs) {
+      const elapsed = (nowMs - raceStartMs) / 1000;
+      const order = standings();
+      const place = Math.max(1, order.findIndex((c) => c.name === player.name) + 1);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 24px Trebuchet MS, sans-serif";
+      ctx.textAlign = "left";
+      ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
+      ctx.shadowBlur = 6;
+      ctx.fillText(`Lap ${Math.min(TARGET_LAPS, player.laps + 1)}/${TARGET_LAPS}`, 20, 36);
+      ctx.fillText(`Speed ${Math.round(Math.abs(player.speed))}`, 20, 66);
+      ctx.fillText(`Place ${place}/${1 + aiCars.length}`, 20, 96);
+      ctx.fillText(`Time ${elapsed.toFixed(1)}s`, 20, 126);
+      ctx.fillText(`Track ${currentTrackIndex + 1}: ${currentTrack().name}`, 20, 156);
+      ctx.fillText(`Difficulty: ${currentTrack().difficulty}`, 20, 186);
+
+      ctx.font = "16px Trebuchet MS, sans-serif";
+      ctx.fillText("Controls: Arrow keys / WASD, 1-9 quick select, Q/E next/prev, R restart", 20, height - 22);
+
+      ctx.textAlign = "right";
+      ctx.font = "bold 18px Trebuchet MS, sans-serif";
+      order.forEach((entry, i) => {
+        ctx.fillStyle = entry.color;
+        ctx.fillText(`${i + 1}. ${entry.name}`, width - 20, 32 + i * 24);
+      });
+      ctx.shadowBlur = 0;
+
+      if (raceOver) {
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.fillRect(0, 0, width, height);
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 48px Trebuchet MS, sans-serif";
+        ctx.fillText(`${winner} wins!`, width / 2, height / 2 - 20);
+        ctx.font = "24px Trebuchet MS, sans-serif";
+        ctx.fillText("Press R or use 1-9 / Q-E to switch tracks", width / 2, height / 2 + 24);
+      }
+    }
+
+    let prev = performance.now();
+    function tick(now) {
+      const dt = Math.min(0.033, (now - prev) / 1000);
+      prev = now;
+
+      updatePlayer(dt, now);
+      updateAI(dt, now);
+
+      drawTrack();
+      aiCars.forEach((car) => {
+        const pose = aiPose(car);
+        drawCar(pose.x, pose.y, pose.heading, car.color);
+      });
+      drawCar(player.x, player.y, player.heading, player.color);
+      drawHud(now);
+
+      requestAnimationFrame(tick);
+    }
+
+    window.addEventListener("keydown", (e) => {
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      keys.add(key);
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) {
+        e.preventDefault();
+      }
+      if (key === "r") resetRace();
+      if (key === "q" || key === "[") cycleTrack(-1);
+      if (key === "e" || key === "]") cycleTrack(1);
+      const trackNum = Number(key);
+      if (Number.isInteger(trackNum) && trackNum >= 1 && trackNum <= Math.min(9, tracks.length)) {
+        setTrack(trackNum - 1);
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      keys.delete(key);
+    });
+
+    window.addEventListener("resize", resize);
+    resize();
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>

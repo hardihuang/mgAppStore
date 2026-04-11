@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>神奇吃豆人</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            touch-action: none; /* 防止移动端滑动屏幕 */
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+            border-radius: 10px;
+            overflow: hidden;
+            background-color: #000;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 10;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        h1 {
+            color: #FFD700;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px #000;
+            text-align: center;
+        }
+
+        p {
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+            text-align: center;
+            line-height: 1.5;
+            padding: 0 10px;
+        }
+
+        button {
+            pointer-events: auto;
+            background-color: #00FFFF;
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s;
+            margin: 5px;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            background-color: #fff;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        #header {
+            width: 100%;
+            max-width: 380px;
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 20px;
+            box-sizing: border-box;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #FFD700;
+        }
+
+        /* 移动端控制按钮 */
+        #controls {
+            display: grid;
+            grid-template-columns: repeat(3, 60px);
+            grid-template-rows: repeat(3, 60px);
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .ctrl-btn {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 215, 0, 0.5);
+            border-radius: 10px;
+            color: white;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            cursor: pointer;
+            transition: background-color 0.1s;
+        }
+
+        .ctrl-btn:active {
+            background-color: rgba(255, 215, 0, 0.4);
+        }
+
+        #btn-up { grid-column: 2; grid-row: 1; }
+        #btn-left { grid-column: 1; grid-row: 2; }
+        #btn-right { grid-column: 3; grid-row: 2; }
+        #btn-down { grid-column: 2; grid-row: 3; }
+
+        @media (min-width: 768px) {
+            #controls {
+                display: none; /* 电脑端隐藏虚拟按键 */
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <span id="score-display">得分: 0</span>
+        <span id="level-display">关卡: 1</span>
+    </div>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="380" height="420"></canvas>
+        
+        <div id="ui-layer">
+            <div id="screen-start">
+                <h1>神奇吃豆人</h1>
+                <p>躲避敌人，吃光所有豆子！<br><span style="color: #00FFFF; font-size: 0.9rem;">提示：吃下四角的闪光豆可召唤小帮手</span></p>
+                <button onclick="startGame()">开始游戏</button>
+            </div>
+            
+            <div id="screen-next-level" class="hidden">
+                <h1>关卡完成!</h1>
+                <p id="next-level-text">准备迎接下一关</p>
+                <button onclick="startNextLevel()">继续</button>
+            </div>
+            
+            <div id="screen-game-over" class="hidden">
+                <h1 style="color: #ff3333;">游戏结束</h1>
+                <p id="final-score">最终得分: 0</p>
+                <button onclick="resetGame()">重新开始</button>
+            </div>
+            
+            <div id="screen-win" class="hidden">
+                <h1 style="color: #33ff33;">你赢了!</h1>
+                <p>恭喜通关所有三个难度！</p>
+                <button onclick="resetGame()">再玩一次</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="controls">
+        <div class="ctrl-btn" id="btn-up">▲</div>
+        <div class="ctrl-btn" id="btn-left">◀</div>
+        <div class="ctrl-btn" id="btn-right">▶</div>
+        <div class="ctrl-btn" id="btn-down">▼</div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // UI 元素
+    const uiLayer = document.getElementById('ui-layer');
+    const screenStart = document.getElementById('screen-start');
+    const screenNextLevel = document.getElementById('screen-next-level');
+    const screenGameOver = document.getElementById('screen-game-over');
+    const screenWin = document.getElementById('screen-win');
+    const scoreDisplay = document.getElementById('score-display');
+    const levelDisplay = document.getElementById('level-display');
+    const finalScoreDisplay = document.getElementById('final-score');
+    
+    // 游戏常量和配置
+    const TILE_SIZE = 20;
+    const ROWS = 21;
+    const COLS = 19;
+    
+    // 关卡配置 (1关正常，2关敌人加速，3关敌人加速且增多)
+    const LEVELS = [
+        { playerSpeed: 0.12, enemySpeed: 0.06, enemyCount: 4 }, // 关卡 1
+        { playerSpeed: 0.12, enemySpeed: 0.09, enemyCount: 4 }, // 关卡 2
+        { playerSpeed: 0.12, enemySpeed: 0.11, enemyCount: 6 }  // 关卡 3
+    ];
+    
+    const ENEMY_COLORS = ['#FF0000', '#FFB8FF', '#FF00FF', '#00FF00', '#FFA500', '#9932CC']; // 鬼魂颜色
+    
+    // ================= 音效系统 (Web Audio API) =================
+    let audioCtx = null;
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    function playEatSound() {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.05);
+        gainNode.gain.setValueAtTime(0.02, audioCtx.currentTime); 
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
+    }
+
+    function playMagicSound() {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(1600, audioCtx.currentTime + 0.2);
+        gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.2);
+    }
+
+    function playGameOverSound() {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 1);
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1);
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 1);
+    }
+
+    function playWinSound() {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(600, audioCtx.currentTime + 0.2);
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime + 0.4);
+        osc.frequency.setValueAtTime(1200, audioCtx.currentTime + 0.6);
+        gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1);
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 1);
+    }
+
+    // 帮手被吃掉的音效
+    function playHelperDieSound() {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.2);
+        gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.2);
+    }
+    
+    // ================= 地图与实体定义 =================
+    // W=墙壁, .=豆子, M=神奇豆子, 空格=空白, S=敌人出生点(无豆子)
+    const MAP_TEMPLATE = [
+        "WWWWWWWWWWWWWWWWWWW",
+        "WM.......W.......MW",
+        "W.WW.WWW.W.WWW.WW.W",
+        "W.................W",
+        "W.WW.W.WWWWW.W.WW.W",
+        "W....W...W...W....W",
+        "WWWW.WWW W WWW.WWWW",
+        "   W.W       W.W   ",
+        "WWWW.W WW WW W.WWWW",
+        "    .  W S W  .    ",
+        "WWWW.W WWWWW W.WWWW",
+        "   W.W       W.W   ",
+        "WWWW.W WWWWW W.WWWW",
+        "W........W........W",
+        "W.WW.WWW.W.WWW.WW.W",
+        "WM.W..... .....W.MW",
+        "WW.W.W.WWWWW.W.W.WW",
+        "W....W...W...W....W",
+        "W.WWWWWW.W.WWWWWW.W",
+        "W.................W",
+        "WWWWWWWWWWWWWWWWWWW"
+    ];
+
+    const DIRS = {
+        UP: { x: 0, y: -1, angle: -Math.PI / 2 },
+        DOWN: { x: 0, y: 1, angle: Math.PI / 2 },
+        LEFT: { x: -1, y: 0, angle: Math.PI },
+        RIGHT: { x: 1, y: 0, angle: 0 },
+        NONE: { x: 0, y: 0, angle: 0 }
+    };
+
+    let map = [];
+    let score = 0;
+    let currentLevel = 0;
+    let dotsRemaining = 0;
+    let gameState = 'START'; 
+    let animationId;
+    let helpers = []; 
+    let hunters = []; // 猎手数组
+    let spawnPoints = []; // 保存怪物出生点，用于动态生成
+    
+    class Entity {
+        constructor(col, row, speed, color) {
+            this.col = col;
+            this.row = row;
+            this.targetCol = col;
+            this.targetRow = row;
+            this.speed = speed;
+            this.color = color;
+            this.progress = 0; 
+            this.dir = DIRS.NONE;
+            this.nextDir = null;
+            this.mouthTimer = 0;
+        }
+
+        update() {
+            if (this.progress === 0) {
+                let tryDir = this.nextDir || this.dir;
+                
+                if (tryDir !== DIRS.NONE && this.canMove(tryDir)) {
+                    this.dir = tryDir;
+                    this.targetCol = this.col + this.dir.x;
+                    this.targetRow = this.row + this.dir.y;
+                    this.progress += this.speed;
+                } else if (this.dir !== DIRS.NONE && this.canMove(this.dir)) {
+                    this.targetCol = this.col + this.dir.x;
+                    this.targetRow = this.row + this.dir.y;
+                    this.progress += this.speed;
+                } else {
+                    this.dir = DIRS.NONE;
+                }
+            } else {
+                this.progress += this.speed;
+                if (this.progress >= 1) {
+                    this.col = this.targetCol;
+                    this.row = this.targetRow;
+                    this.progress = 0;
+                    
+                    if (this.col <= 0 && this.dir === DIRS.LEFT) {
+                        this.col = COLS - 1;
+                        this.targetCol = this.col;
+                    } else if (this.col >= COLS - 1 && this.dir === DIRS.RIGHT) {
+                        this.col = 0;
+                        this.targetCol = this.col;
+                    }
+                }
+            }
+            this.mouthTimer += 0.15;
+        }
+
+        canMove(direction) {
+            let nc = this.col + direction.x;
+            let nr = this.row + direction.y;
+            if (nc < 0 || nc >= COLS) return true;
+            return map[nr][nc] !== 'W';
+        }
+
+        getRenderPos() {
+            let x = (this.col + (this.targetCol - this.col) * this.progress) * TILE_SIZE + TILE_SIZE / 2;
+            let y = (this.row + (this.targetRow - this.row) * this.progress) * TILE_SIZE + TILE_SIZE / 2;
+            if (Math.abs(this.targetCol - this.col) > 1) {
+                x = this.col * TILE_SIZE + TILE_SIZE / 2; 
+            }
+            return { x, y };
+        }
+
+        draw(ctx) {
+            let pos = this.getRenderPos();
+            let mouthOpen = Math.abs(Math.sin(this.mouthTimer)) * 0.5; 
+            
+            ctx.save();
+            ctx.translate(pos.x, pos.y);
+            ctx.rotate(this.dir.angle || 0);
+            
+            ctx.beginPath();
+            ctx.arc(0, 0, TILE_SIZE / 2 - 2, mouthOpen * Math.PI, (2 - mouthOpen) * Math.PI);
+            ctx.lineTo(0, 0);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            ctx.closePath();
+            
+            ctx.restore();
+        }
+    }
+
+    // 敌人基类
+    class Enemy extends Entity {
+        constructor(col, row, speed, color) {
+            super(col, row, speed, color);
+            this.dir = DIRS.RIGHT;
+        }
+
+        updateAI() {
+            if (this.progress === 0) {
+                let possibleDirs = [];
+                let oppositeDir = { x: -this.dir.x, y: -this.dir.y };
+
+                Object.values(DIRS).forEach(d => {
+                    if (d !== DIRS.NONE && this.canMove(d)) {
+                        if (d.x !== oppositeDir.x || d.y !== oppositeDir.y) {
+                            possibleDirs.push(d);
+                        }
+                    }
+                });
+
+                if (possibleDirs.length === 0) {
+                    Object.values(DIRS).forEach(d => {
+                        if (d !== DIRS.NONE && this.canMove(d)) {
+                            possibleDirs.push(d);
+                        }
+                    });
+                }
+
+                if (possibleDirs.length > 0) {
+                    let randIndex = Math.floor(Math.random() * possibleDirs.length);
+                    this.nextDir = possibleDirs[randIndex];
+                }
+            }
+        }
+
+        update() {
+            this.updateAI();
+            super.update();
+        }
+    }
+
+    // 助手吃豆人 (小豆子)
+    class Helper extends Enemy {
+        constructor(col, row, speed) {
+            super(col, row, speed, '#00FFFF'); // 青色发光的小豆子
+            this.sizeRatio = 0.55; // 体积变小
+        }
+
+        draw(ctx) {
+            let pos = this.getRenderPos();
+            let mouthOpen = Math.abs(Math.sin(this.mouthTimer * 2)) * 0.5; 
+            
+            ctx.save();
+            ctx.translate(pos.x, pos.y);
+            ctx.rotate(this.dir.angle || 0);
+            
+            ctx.beginPath();
+            ctx.arc(0, 0, (TILE_SIZE / 2 - 2) * this.sizeRatio, mouthOpen * Math.PI, (2 - mouthOpen) * Math.PI);
+            ctx.lineTo(0, 0);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            ctx.closePath();
+            
+            // 增加一点光晕效果
+            ctx.beginPath();
+            ctx.arc(0, 0, (TILE_SIZE / 2) * this.sizeRatio, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.3)';
+            ctx.fill();
+            
+            ctx.restore();
+        }
+    }
+
+    // 猎手吃豆人 (专门追踪并捕食小豆子帮手)
+    class Hunter extends Enemy {
+        constructor(col, row, speed) {
+            super(col, row, speed, '#FFFFFF'); // 白色代表猎手
+        }
+
+        updateAI() {
+            if (this.progress === 0) {
+                if (helpers.length === 0) {
+                    super.updateAI(); // 如果场上没有帮手了，就按普通敌人的逻辑游荡
+                    return;
+                }
+
+                // 寻找距离最近的帮手
+                let target = helpers[0];
+                let minDist = Infinity;
+                for (let h of helpers) {
+                    let d = Math.abs(h.col - this.col) + Math.abs(h.row - this.row);
+                    if (d < minDist) {
+                        minDist = d;
+                        target = h;
+                    }
+                }
+
+                let possibleDirs = [];
+                let oppositeDir = { x: -this.dir.x, y: -this.dir.y };
+
+                Object.values(DIRS).forEach(d => {
+                    if (d !== DIRS.NONE && this.canMove(d)) {
+                        if (d.x !== oppositeDir.x || d.y !== oppositeDir.y) {
+                            possibleDirs.push(d);
+                        }
+                    }
+                });
+
+                if (possibleDirs.length === 0) {
+                    Object.values(DIRS).forEach(d => {
+                        if (d !== DIRS.NONE && this.canMove(d)) {
+                            possibleDirs.push(d);
+                        }
+                    });
+                }
+
+                if (possibleDirs.length > 0) {
+                    // 按照朝目标移动的距离排序，选择最优路径
+                    possibleDirs.sort((a, b) => {
+                        let distA = Math.abs((this.col + a.x) - target.col) + Math.abs((this.row + a.y) - target.row);
+                        let distB = Math.abs((this.col + b.x) - target.col) + Math.abs((this.row + b.y) - target.row);
+                        return distA - distB;
+                    });
+                    this.nextDir = possibleDirs[0]; 
+                }
+            }
+        }
+    }
+
+    let player;
+    let enemies = [];
+
+    // ================= 游戏核心逻辑 =================
+    function parseMap() {
+        map = [];
+        dotsRemaining = 0;
+        let startPoint = { col: 9, row: 15 };
+        let enemySpawnPoints = [];
+
+        for (let r = 0; r < ROWS; r++) {
+            let rowData = [];
+            for (let c = 0; c < COLS; c++) {
+                let cell = MAP_TEMPLATE[r][c];
+                rowData.push(cell);
+                if (cell === '.' || cell === 'M') {
+                    dotsRemaining++;
+                } else if (cell === 'S') {
+                    rowData[c] = ' '; 
+                }
+            }
+            map.push(rowData);
+        }
+        
+        enemySpawnPoints = [
+            {c: 8, r: 9}, {c: 9, r: 9}, {c: 10, r: 9},
+            {c: 8, r: 8}, {c: 9, r: 8}, {c: 10, r: 8}
+        ];
+        
+        spawnPoints = enemySpawnPoints; // 保存到全局，方便后续召唤
+
+        return { startPoint, enemySpawnPoints };
+    }
+
+    function initLevel() {
+        let levelData = LEVELS[currentLevel];
+        let mapData = parseMap();
+        
+        player = new Entity(mapData.startPoint.col, mapData.startPoint.row, levelData.playerSpeed, '#FFD700');
+        enemies = [];
+        helpers = []; 
+        hunters = []; // 关卡重置时清空猎手
+        
+        for (let i = 0; i < levelData.enemyCount; i++) {
+            let spawn = mapData.enemySpawnPoints[i % mapData.enemySpawnPoints.length];
+            let enemy = new Enemy(spawn.c, spawn.r, levelData.enemySpeed, ENEMY_COLORS[i % ENEMY_COLORS.length]);
+            enemies.push(enemy);
+        }
+        
+        levelDisplay.innerText = `关卡: ${currentLevel + 1}`;
+        scoreDisplay.innerText = `得分: ${score}`;
+    }
+
+    function drawMap() {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                let x = c * TILE_SIZE;
+                let y = r * TILE_SIZE;
+                
+                if (map[r][c] === 'W') {
+                    ctx.fillStyle = '#000033';
+                    ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                    ctx.strokeStyle = '#1E90FF';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+                } else if (map[r][c] === '.') {
+                    ctx.fillStyle = '#FFD700';
+                    ctx.beginPath();
+                    ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (map[r][c] === 'M') {
+                    ctx.fillStyle = '#00FFFF';
+                    ctx.beginPath();
+                    let radius = 4 + Math.sin(Date.now() / 150) * 1.5; // 神奇豆子闪烁效果
+                    ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+    }
+
+    function checkCollisions() {
+        if (gameState !== 'PLAYING') return;
+
+        // 1. 玩家吃豆子
+        let playerCenterCol = player.progress > 0.5 ? player.targetCol : player.col;
+        let playerCenterRow = player.progress > 0.5 ? player.targetRow : player.row;
+
+        if (playerCenterCol >= 0 && playerCenterCol < COLS) {
+            let cell = map[playerCenterRow][playerCenterCol];
+            if (cell === '.' || cell === 'M') {
+                map[playerCenterRow][playerCenterCol] = ' ';
+                score += (cell === 'M' ? 50 : 10);
+                dotsRemaining--;
+                scoreDisplay.innerText = `得分: ${score}`;
+                
+                if (cell === 'M') {
+                    playMagicSound();
+                    // 召唤帮手
+                    helpers.push(new Helper(playerCenterCol, playerCenterRow, 0.15));
+                    // 同时，在中间怪物房生成一个白色猎手！
+                    let spawn = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
+                    hunters.push(new Hunter(spawn.c, spawn.r, 0.12)); 
+                } else {
+                    playEatSound(); 
+                }
+                
+                if (dotsRemaining <= 0) {
+                    levelComplete();
+                    return;
+                }
+            }
+        }
+
+        // 2. 帮手吃豆子
+        helpers.forEach(helper => {
+            let hc = helper.progress > 0.5 ? helper.targetCol : helper.col;
+            let hr = helper.progress > 0.5 ? helper.targetRow : helper.row;
+            if (hc >= 0 && hc < COLS) {
+                let hCell = map[hr][hc];
+                if (hCell === '.' || hCell === 'M') {
+                    map[hr][hc] = ' ';
+                    score += (hCell === 'M' ? 50 : 10);
+                    dotsRemaining--;
+                    scoreDisplay.innerText = `得分: ${score}`;
+                    
+                    if (hCell === 'M') {
+                        playMagicSound();
+                        helpers.push(new Helper(hc, hr, 0.15));
+                        // 帮手吃到神奇豆子，也会触发白色猎手的降临
+                        let spawn = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
+                        hunters.push(new Hunter(spawn.c, spawn.r, 0.12));
+                    } else {
+                        playEatSound();
+                    }
+                    
+                    if (dotsRemaining <= 0 && gameState === 'PLAYING') {
+                        levelComplete();
+                        return;
+                    }
+                }
+            }
+        });
+
+        // 3. 敌人碰撞检测
+        let pRender = player.getRenderPos();
+        for (let enemy of enemies) {
+            let eRender = enemy.getRenderPos();
+            let dx = pRender.x - eRender.x;
+            let dy = pRender.y - eRender.y;
+            let dist = Math.sqrt(dx * dx + dy * dy);
+            
+            // 如果距离小于一个格子的大小，视为相撞
+            if (dist < TILE_SIZE * 0.7) {
+                gameOver();
+                return;
+            }
+        }
+        
+        // 4. 白色猎手碰撞检测
+        for (let i = hunters.length - 1; i >= 0; i--) {
+            let hunter = hunters[i];
+            let hRender = hunter.getRenderPos();
+            
+            // 猎手碰到玩家，玩家也会死！
+            let dxP = pRender.x - hRender.x;
+            let dyP = pRender.y - hRender.y;
+            if (Math.sqrt(dxP * dxP + dyP * dyP) < TILE_SIZE * 0.7) {
+                gameOver();
+                return;
+            }
+            
+            // 猎手抓捕小豆子帮手
+            for (let j = helpers.length - 1; j >= 0; j--) {
+                let helper = helpers[j];
+                let hpRender = helper.getRenderPos();
+                let dx = hRender.x - hpRender.x;
+                let dy = hRender.y - hpRender.y;
+                if (Math.sqrt(dx * dx + dy * dy) < TILE_SIZE * 0.7) {
+                    helpers.splice(j, 1); // 帮手被吃掉
+                    playHelperDieSound(); // 发出被吃掉的声音
+                    break; // 这个猎手这一帧只吃一个
+                }
+            }
+        }
+    }
+
+    function gameLoop() {
+        if (gameState !== 'PLAYING') return;
+
+        // 更新逻辑
+        player.update();
+        enemies.forEach(enemy => enemy.update());
+        helpers.forEach(helper => helper.update());
+        hunters.forEach(hunter => hunter.update());
+        
+        checkCollisions();
+
+        if (gameState !== 'PLAYING') return;
+
+        // 渲染
+        drawMap();
+        player.draw(ctx);
+        enemies.forEach(enemy => enemy.draw(ctx));
+        helpers.forEach(helper => helper.draw(ctx));
+        hunters.forEach(hunter => hunter.draw(ctx));
+
+        animationId = requestAnimationFrame(gameLoop);
+    }
+
+    // ================= 流程与控制 =================
+    function hideAllScreens() {
+        uiLayer.classList.add('hidden');
+        screenStart.classList.add('hidden');
+        screenNextLevel.classList.add('hidden');
+        screenGameOver.classList.add('hidden');
+        screenWin.classList.add('hidden');
+    }
+
+    function startGame() {
+        initAudio(); 
+        score = 0;
+        currentLevel = 0;
+        hideAllScreens();
+        initLevel();
+        gameState = 'PLAYING';
+        gameLoop();
+    }
+
+    function startNextLevel() {
+        initAudio(); 
+        hideAllScreens();
+        initLevel();
+        gameState = 'PLAYING';
+        gameLoop();
+    }
+
+    function resetGame() {
+        startGame();
+    }
+
+    function levelComplete() {
+        gameState = 'LEVEL_END';
+        cancelAnimationFrame(animationId);
+        
+        uiLayer.classList.remove('hidden');
+        currentLevel++;
+        
+        if (currentLevel >= LEVELS.length) {
+            playWinSound(); 
+            screenWin.classList.remove('hidden');
+        } else {
+            document.getElementById('next-level-text').innerText = `准备迎接 第 ${currentLevel + 1} 关\n敌人将会变得更强！`;
+            screenNextLevel.classList.remove('hidden');
+        }
+    }
+
+    function gameOver() {
+        gameState = 'GAME_OVER';
+        cancelAnimationFrame(animationId);
+        uiLayer.classList.remove('hidden');
+        
+        playGameOverSound(); 
+        
+        finalScoreDisplay.innerText = `最终得分: ${score}`;
+        screenGameOver.classList.remove('hidden');
+    }
+
+    // 键盘控制
+    window.addEventListener('keydown', (e) => {
+        if (gameState !== 'PLAYING') return;
+        switch (e.key) {
+            case 'ArrowUp':
+            case 'w':
+            case 'W':
+                player.nextDir = DIRS.UP; break;
+            case 'ArrowDown':
+            case 's':
+            case 'S':
+                player.nextDir = DIRS.DOWN; break;
+            case 'ArrowLeft':
+            case 'a':
+            case 'A':
+                player.nextDir = DIRS.LEFT; break;
+            case 'ArrowRight':
+            case 'd':
+            case 'D':
+                player.nextDir = DIRS.RIGHT; break;
+        }
+        if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight", " "].indexOf(e.key) > -1) {
+            e.preventDefault();
+        }
+    });
+
+    // 触摸按钮控制
+    function bindTouchBtn(id, dir) {
+        const btn = document.getElementById(id);
+        const setDir = (e) => {
+            e.preventDefault();
+            if (gameState === 'PLAYING') player.nextDir = dir;
+        };
+        btn.addEventListener('touchstart', setDir, {passive: false});
+        btn.addEventListener('mousedown', setDir);
+    }
+
+    bindTouchBtn('btn-up', DIRS.UP);
+    bindTouchBtn('btn-down', DIRS.DOWN);
+    bindTouchBtn('btn-left', DIRS.LEFT);
+    bindTouchBtn('btn-right', DIRS.RIGHT);
+
+    // 初始渲染背景
+    drawMap();
+</script>
+
+</body>
+</html>

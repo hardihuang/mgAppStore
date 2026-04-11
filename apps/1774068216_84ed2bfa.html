@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>马里奥地铁跑酷 - 最终版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            overflow: hidden;
+        }
+
+        /* 游戏容器 */
+        #game-container {
+            position: relative;
+            width: 1200px;
+            height: 600px;
+            background: #f8f9fa;
+            border: 5px solid #2c3e50;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            /* 马里奥风格背景 */
+            background-image: url('https://picsum.photos/id/1018/1200/600');
+            background-size: cover;
+            background-position: center;
+        }
+
+        /* 游戏背景层（马里奥风格） */
+        #game-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 400%;
+            height: 100%;
+            background: url('https://picsum.photos/id/1038/2400/600') repeat-x;
+            background-size: contain;
+            animation: bgScroll 20s linear infinite;
+            opacity: 0.4;
+            z-index: 0;
+        }
+
+        /* 轨道（马里奥地面风格） */
+        #track {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 80px;
+            background: linear-gradient(#8B4513, #A0522D);
+            border-top: 3px solid #D2691E;
+            z-index: 1;
+        }
+
+        /* 轨道线条（马里奥砖块风格） */
+        #track::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: repeating-linear-gradient(
+                to right,
+                #FFD700 0px,
+                #FFD700 50px,
+                transparent 50px,
+                transparent 100px
+            );
+            transform: translateY(-50%);
+            animation: trackScroll 0.5s linear infinite;
+        }
+
+        /* 马里奥角色样式 */
+        #player {
+            position: absolute;
+            width: 60px;
+            height: 80px;
+            bottom: 80px;
+            left: 150px;
+            border-radius: 5px;
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+            transition: all 0.05s ease; /* 更快的响应速度 */
+            z-index: 2;
+            /* 马里奥身体 */
+            background: linear-gradient(180deg, 
+                #E53935 0%, 
+                #E53935 50%, 
+                #1E88E5 50%, 
+                #1E88E5 80%, 
+                #FFC107 80%, 
+                #FFC107 100%);
+            border: 2px solid #B71C1C;
+        }
+
+        /* 马里奥头部 */
+        #player::before {
+            content: '';
+            position: absolute;
+            top: -18px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 35px;
+            height: 35px;
+            background: radial-gradient(circle at 30% 30%, #FFEB3B, #FFC107);
+            border-radius: 50%;
+            border: 2px solid #B71C1C;
+        }
+
+        /* 马里奥帽子 */
+        #player::after {
+            content: '';
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 20px;
+            background: #E53935;
+            border: 2px solid #B71C1C;
+            border-radius: 10px 10px 0 0;
+        }
+
+        /* 马里奥眼睛 */
+        #player .eyes {
+            position: absolute;
+            top: -12px;
+            left: 15px;
+            width: 8px;
+            height: 8px;
+            background: black;
+            border-radius: 50%;
+            box-shadow: 18px 0 0 black;
+            z-index: 3;
+        }
+
+        /* 跳跃形态（马里奥跳跃） */
+        .player-jump {
+            animation: jumpBounce 0.3s ease-in-out;
+            background: linear-gradient(180deg, 
+                #F44336 0%, 
+                #F44336 50%, 
+                #2196F3 50%, 
+                #2196F3 80%, 
+                #FFEB3B 80%, 
+                #FFEB3B 100%);
+            transform: scale(1.1);
+        }
+
+        /* 下蹲形态 */
+        .player-crouch {
+            width: 70px !important;
+            height: 40px !important;
+            transform: translateY(40px);
+            border-radius: 10px !important;
+        }
+
+        /* 保安追击者 */
+        #security {
+            position: absolute;
+            width: 70px;
+            height: 85px;
+            bottom: 80px;
+            left: 50px;
+            border-radius: 5px;
+            z-index: 1;
+            /* 保安身体 */
+            background: linear-gradient(180deg, 
+                #212121 0%, 
+                #212121 50%, 
+                #FFFFFF 50%, 
+                #FFFFFF 80%, 
+                #424242 80%, 
+                #424242 100%);
+            border: 2px solid #000;
+            transition: left 0.05s linear; /* 平滑追击 */
+        }
+
+        /* 保安头部 */
+        #security::before {
+            content: '';
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 40px;
+            background: #FFCCBC;
+            border-radius: 50%;
+            border: 2px solid #000;
+        }
+
+        /* 保安帽子 */
+        #security::after {
+            content: '';
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 45px;
+            height: 20px;
+            background: #F44336;
+            border: 2px solid #000;
+            border-radius: 5px 5px 0 0;
+        }
+
+        /* 障碍物基础样式 */
+        .obstacle {
+            position: absolute;
+            bottom: 80px;
+            right: -100px;
+            border-radius: 5px;
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+            z-index: 2;
+        }
+
+        /* 地铁障碍物（加长版 - 马里奥砖块）- 可站立的轨道 */
+        .train {
+            width: 180px; /* 从90px加长到180px */
+            height: 80px;
+            background: linear-gradient(45deg, #9C27B0, #7B1FA2);
+            border: 2px solid #6A1B9A;
+            /* 增加顶部轨道效果 */
+            border-top: 5px solid #FFD700;
+        }
+
+        .train::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 160px; /* 同步加长 */
+            height: 20px;
+            background: #FFEB3B;
+            border-radius: 3px;
+        }
+
+        /* 小车障碍物（马里奥蘑菇） */
+        .car {
+            width: 70px;
+            height: 50px;
+            background: linear-gradient(45deg, #4CAF50, #388E3C);
+            border: 2px solid #2E7D32;
+            border-radius: 8px 8px 3px 3px;
+        }
+
+        .car::before {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 10px;
+            width: 12px;
+            height: 12px;
+            background: #2c3e50;
+            border-radius: 50%;
+            box-shadow: 40px 0 0 #2c3e50;
+        }
+
+        .car::after {
+            content: '';
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 54px;
+            height: 15px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+
+        /* 仙人掌障碍物（马里奥刺球） */
+        .cactus {
+            width: 40px;
+            height: 70px;
+            background: linear-gradient(45deg, #F44336, #D32F2F);
+            border: 2px solid #B71C1C;
+            border-radius: 20px 20px 0 0;
+        }
+
+        .cactus::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: -15px;
+            width: 20px;
+            height: 40px;
+            background: linear-gradient(45deg, #F44336, #D32F2F);
+            border: 2px solid #B71C1C;
+            border-radius: 10px;
+        }
+
+        .cactus::after {
+            content: '';
+            position: absolute;
+            top: 15px;
+            right: -15px;
+            width: 20px;
+            height: 35px;
+            background: linear-gradient(45deg, #F44336, #D32F2F);
+            border: 2px solid #B71C1C;
+            border-radius: 10px;
+        }
+
+        /* 栏杆障碍物（马里奥水管） */
+        .rail {
+            width: 40px;
+            height: 60px;
+            background: linear-gradient(45deg, #2E7D32, #1B5E20);
+            border: 2px solid #104015;
+        }
+
+        .rail::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: #827717;
+        }
+
+        /* 分数和关卡面板 */
+        #score-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        #level-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #f1c40f;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        /* 游戏结束面板 */
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            padding: 40px 60px;
+            border-radius: 15px;
+            font-size: 36px;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 0 50px rgba(231, 76, 60, 0.8);
+            display: none;
+            z-index: 20;
+        }
+
+        #game-over span {
+            color: #f1c40f;
+            font-size: 40px;
+        }
+
+        #game-over p {
+            margin-top: 20px;
+            font-size: 18px;
+            color: #ecf0f1;
+        }
+
+        /* 关卡通关提示 */
+        #level-up {
+            position: absolute;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: #f1c40f;
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 32px;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(241, 196, 15, 0.8);
+            display: none;
+            z-index: 20;
+            animation: levelUpBounce 1s ease-in-out;
+        }
+
+        /* 控制提示 */
+        #controls {
+            margin-top: 30px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px 30px;
+            border-radius: 30px;
+            font-size: 18px;
+            color: #2c3e50;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        /* 动画定义 */
+        @keyframes bgScroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-900px); }
+        }
+
+        @keyframes trackScroll {
+            0% { transform: translateY(-50%) translateX(0); }
+            100% { transform: translateY(-50%) translateX(-100px); }
+        }
+
+        /* 更快的跳跃动画 */
+        @keyframes jumpBounce {
+            0% { transform: scale(1) translateY(0); }
+            50% { transform: scale(1.1) translateY(-10px); }
+            100% { transform: scale(1) translateY(0); }
+        }
+
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            20% { transform: translateX(-10px); }
+            40% { transform: translateX(10px); }
+            60% { transform: translateX(-10px); }
+            80% { transform: translateX(10px); }
+            100% { transform: translateX(0); }
+        }
+
+        @keyframes levelUpBounce {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="game-bg"></div>
+        <div id="track"></div>
+        <!-- 保安追击者 -->
+        <div id="security"></div>
+        <!-- 马里奥角色 -->
+        <div id="player">
+            <div class="eyes"></div>
+        </div>
+        <div id="score-panel">分数: 0</div>
+        <div id="level-panel">关卡: 1</div>
+        <div id="game-over">
+            游戏结束!<br>
+            最终分数: <span id="final-score">0</span><br>
+            最终关卡: <span id="final-level">1</span><br>
+            <p>按 R 重新开始 | 按 Q 退出</p>
+        </div>
+        <div id="level-up">
+            恭喜！进入第 <span id="new-level">2</span> 关
+        </div>
+    </div>
+    
+    <div id="controls">
+        🎮 控制方式: 空格键 = 跳跃 | 下方向键/S = 下蹲
+    </div>
+
+    <!-- 音效元素 -->
+    <audio id="jump-sound" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-jump-coin-216.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="collision-sound" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-player-losing-or-failing-2042.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="level-up-sound" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-video-game-level-up-2059.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="score-sound" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-coin-win-2165.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        // 游戏核心变量
+        const gameContainer = document.getElementById('game-container');
+        const player = document.getElementById('player');
+        const security = document.getElementById('security'); // 保安元素
+        const scorePanel = document.getElementById('score-panel');
+        const levelPanel = document.getElementById('level-panel');
+        const gameOverPanel = document.getElementById('game-over');
+        const levelUpPanel = document.getElementById('level-up');
+        const finalScoreElement = document.getElementById('final-score');
+        const finalLevelElement = document.getElementById('final-level');
+        const newLevelElement = document.getElementById('new-level');
+        
+        // 音效元素
+        const jumpSound = document.getElementById('jump-sound');
+        const collisionSound = document.getElementById('collision-sound');
+        const levelUpSound = document.getElementById('level-up-sound');
+        const scoreSound = document.getElementById('score-sound'); // 加分音效
+        
+        // 游戏参数（优化跳跃和障碍物速度）
+        let score = 0;
+        let level = 1;
+        let gameOver = false;
+        let isJumping = false;
+        let isCrouching = false;
+        let isOnGround = true;
+        let isOnTrain = false; // 新增：标记是否站在地铁轨道上
+        let jumpHeight = 300;    // 更高的跳跃高度
+        let jumpSpeed = 25;      // 更快的跳跃上升速度
+        let gravity = 15;        // 更快的下落速度（保持跳跃节奏）
+        let obstacleSpeed = 12;  // 更快的初始障碍物速度
+        let obstacleSpawnInterval = 1200; // 更短的障碍物生成间隔
+        let playerBottom = 80;   
+        let levelUpScore = 50;   // 关卡升级分数从500降低到50（更易升级）
+        let obstacleTimers = [];
+        let securitySpeed = 4.5; // 保安追击速度（略慢于障碍物）
+        let passedObstacles = new Set(); // 记录已通过的障碍物，避免重复加分
+
+        // 初始化游戏
+        function initGame() {
+            score = 0;
+            level = 1;
+            gameOver = false;
+            isJumping = false;
+            isCrouching = false;
+            isOnGround = true;
+            isOnTrain = false; // 重置站在地铁上的状态
+            obstacleSpeed = 12; // 重置障碍物速度（更快）
+            obstacleSpawnInterval = 1200;
+            securitySpeed = 4.5; // 重置保安速度
+            passedObstacles.clear(); // 清空已通过障碍物记录
+            
+            // 清空定时器
+            obstacleTimers.forEach(timer => clearInterval(timer));
+            obstacleTimers = [];
+            
+            // 重置玩家和保安状态
+            player.classList.remove('player-crouch', 'player-jump');
+            player.style.bottom = `${playerBottom}px`;
+            player.style.left = '150px';
+            security.style.left = '50px'; // 重置保安位置
+            
+            // 清空障碍物
+            document.querySelectorAll('.obstacle').forEach(obs => obs.remove());
+            
+            // 更新UI
+            scorePanel.textContent = `分数: ${score}`;
+            levelPanel.textContent = `关卡: ${level}`;
+            gameOverPanel.style.display = 'none';
+            levelUpPanel.style.display = 'none';
+            
+            // 开始游戏循环
+            startGameLoop();
+            
+            // 开始生成障碍物
+            startSpawningObstacles();
+        }
+
+        // 游戏主循环
+        function startGameLoop() {
+            let lastTime = 0;
+            
+            function gameLoop(timestamp) {
+                if (gameOver) return;
+                
+                const deltaTime = timestamp - lastTime;
+                lastTime = timestamp;
+                
+                // 移除原有的自动加分逻辑，改为仅通过障碍物加分
+                
+                // 检查关卡升级
+                checkLevelUp();
+                
+                // 处理跳跃逻辑（更快的响应）
+                if (isJumping) {
+                    let currentBottom = parseInt(player.style.bottom);
+                    if (currentBottom < jumpHeight) {
+                        player.style.bottom = `${currentBottom + jumpSpeed}px`;
+                        isOnGround = false;
+                        isOnTrain = false; // 跳跃时离开地面/地铁
+                    } else {
+                        isJumping = false;
+                    }
+                } else {
+                    // 重力下落（更快）
+                    let currentBottom = parseInt(player.style.bottom);
+                    
+                    // 检查是否站在地铁上，如果是则停止下落
+                    checkOnTrain();
+                    
+                    if (!isOnTrain && currentBottom > playerBottom) {
+                        player.style.bottom = `${currentBottom - gravity}px`;
+                        isOnGround = false;
+                    } else {
+                        // 如果站在地铁上，设置玩家位置在地铁顶部
+                        if (isOnTrain) {
+                            player.style.bottom = `${playerBottom + 80}px`; // 地铁高度80px，站在顶部
+                        } else {
+                            player.style.bottom = `${playerBottom}px`;
+                        }
+                        isOnGround = true;
+                    }
+                }
+
+                // 保安追击逻辑
+                let playerLeft = parseInt(player.style.left);
+                let securityLeft = parseInt(security.style.left);
+                // 保安始终追着马里奥，保持一定距离
+                if (securityLeft < playerLeft - 100) {
+                    security.style.left = `${securityLeft + securitySpeed}px`;
+                }
+                
+                // 碰撞检测（修改版）
+                checkCollisions();
+                
+                // 检查是否通过障碍物（加分逻辑）
+                checkPassedObstacles();
+                
+                // 继续循环
+                requestAnimationFrame(gameLoop);
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 检查是否站在地铁上
+        function checkOnTrain() {
+            isOnTrain = false; // 先重置
+            const playerRect = player.getBoundingClientRect();
+            const trains = document.querySelectorAll('.obstacle.train');
+            
+            trains.forEach(train => {
+                const trainRect = train.getBoundingClientRect();
+                // 检测玩家是否落在地铁顶部
+                if (
+                    playerRect.left < trainRect.right - 10 &&
+                    playerRect.right > trainRect.left + 10 &&
+                    // 玩家底部刚好接触地铁顶部（容错范围±5px）
+                    playerRect.bottom >= trainRect.top - 5 &&
+                    playerRect.bottom <= trainRect.top + 10
+                ) {
+                    isOnTrain = true;
+                }
+            });
+        }
+
+        // 生成障碍物
+        function startSpawningObstacles() {
+            const obstacleTypes = ['train', 'car', 'cactus', 'rail'];
+            
+            const spawnObstacle = () => {
+                if (gameOver) return;
+                
+                // 随机选择障碍物类型
+                const randomType = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+                const obstacle = document.createElement('div');
+                obstacle.className = `obstacle ${randomType}`;
+                obstacle.style.bottom = '80px';
+                obstacle.style.right = '-100px';
+                // 给每个障碍物添加唯一ID，用于记录是否通过
+                obstacle.dataset.id = Math.random().toString(36).substr(2, 9);
+                gameContainer.appendChild(obstacle);
+                
+                // 移动障碍物（更快）
+                const moveObstacle = setInterval(() => {
+                    if (gameOver) {
+                        clearInterval(moveObstacle);
+                        return;
+                    }
+                    
+                    let currentRight = parseInt(obstacle.style.right) || -100;
+                    obstacle.style.right = `${currentRight + obstacleSpeed}px`;
+                    
+                    // 移除超出屏幕的障碍物
+                    if (currentRight > gameContainer.offsetWidth) {
+                        clearInterval(moveObstacle);
+                        obstacleTimers = obstacleTimers.filter(t => t !== moveObstacle);
+                        passedObstacles.delete(obstacle.dataset.id); // 从已通过集合中移除
+                        obstacle.remove();
+                    }
+                }, 16);
+                
+                obstacleTimers.push(moveObstacle);
+                
+                // 随机生成下一个障碍物
+                const randomInterval = Math.random() * 800 + obstacleSpawnInterval;
+                setTimeout(spawnObstacle, randomInterval);
+            };
+            
+            // 首次生成（更快）
+            setTimeout(spawnObstacle, obstacleSpawnInterval);
+        }
+
+        // 检查是否通过障碍物（加分逻辑）
+        function checkPassedObstacles() {
+            const playerRect = player.getBoundingClientRect();
+            const obstacles = document.querySelectorAll('.obstacle');
+            
+            obstacles.forEach(obstacle => {
+                const obsRect = obstacle.getBoundingClientRect();
+                const obsId = obstacle.dataset.id;
+                
+                // 当障碍物完全通过玩家左侧时加分
+                if (obsRect.right < playerRect.left && !passedObstacles.has(obsId)) {
+                    score++; // 每通过一个障碍物加1分
+                    passedObstacles.add(obsId); // 标记为已通过
+                    scorePanel.textContent = `分数: ${score}`;
+                    scoreSound.play(); // 播放加分音效
+                }
+            });
+        }
+
+        // 碰撞检测（修改版：地铁不触发碰撞）
+        function checkCollisions() {
+            const playerRect = player.getBoundingClientRect();
+            const obstacles = document.querySelectorAll('.obstacle');
+            
+            obstacles.forEach(obstacle => {
+                // 跳过地铁障碍物的碰撞检测
+                if (obstacle.classList.contains('train')) return;
+                
+                const obsRect = obstacle.getBoundingClientRect();
+                
+                if (
+                    playerRect.left < obsRect.right - 8 &&
+                    playerRect.right > obsRect.left + 8 &&
+                    playerRect.top < obsRect.bottom - 8 &&
+                    playerRect.bottom > obsRect.top + 8
+                ) {
+                    gameOver = true;
+                    finalScoreElement.textContent = score;
+                    finalLevelElement.textContent = level;
+                    gameOverPanel.style.display = 'block';
+                    
+                    // 播放碰撞音效
+                    collisionSound.play();
+                    
+                    // 碰撞抖动
+                    gameContainer.style.animation = 'shake 0.5s ease-in-out';
+                    setTimeout(() => {
+                        gameContainer.style.animation = '';
+                    }, 500);
+                }
+            });
+
+            // 检测保安追上马里奥
+            const securityRect = security.getBoundingClientRect();
+            if (
+                playerRect.left < securityRect.right - 10 &&
+                playerRect.right > securityRect.left + 10 &&
+                playerRect.top < securityRect.bottom - 10 &&
+                playerRect.bottom > securityRect.top + 10
+            ) {
+                gameOver = true;
+                finalScoreElement.textContent = score;
+                finalLevelElement.textContent = level;
+                gameOverPanel.style.display = 'block';
+                collisionSound.play();
+                gameContainer.style.animation = 'shake 0.5s ease-in-out';
+                setTimeout(() => {
+                    gameContainer.style.animation = '';
+                }, 500);
+            }
+        }
+
+        // 检查关卡升级
+        function checkLevelUp() {
+            if (score >= level * levelUpScore) {
+                level++;
+                levelPanel.textContent = `关卡: ${level}`;
+                
+                // 播放关卡升级音效
+                levelUpSound.play();
+                
+                // 显示关卡升级提示
+                newLevelElement.textContent = level;
+                levelUpPanel.style.display = 'block';
+                setTimeout(() => {
+                    levelUpPanel.style.display = 'none';
+                }, 1500);
+                
+                // 增加难度
+                obstacleSpeed += 1.2; // 更快的速度增幅
+                securitySpeed += 0.5; // 保安也加速
+                if (obstacleSpawnInterval > 800) {
+                    obstacleSpawnInterval -= 100;
+                }
+            }
+        }
+
+        // 键盘控制（更快的响应）
+        document.addEventListener('keydown', (e) => {
+            if (gameOver) {
+                if (e.key === 'r' || e.key === 'R') {
+                    initGame();
+                }
+                if (e.key === 'q' || e.key === 'Q') {
+                    if (confirm('确定要退出游戏吗？')) {
+                        window.close(); 
+                    }
+                }
+                return;
+            }
+            
+            // 空格键跳跃（即时响应）
+            if (e.code === 'Space' && !isJumping && (isOnGround || isOnTrain) && !isCrouching) {
+                e.preventDefault();
+                isJumping = true;
+                player.classList.add('player-jump');
+                jumpSound.play();
+                
+                // 更快的跳跃动画移除
+                setTimeout(() => {
+                    player.classList.remove('player-jump');
+                }, 300);
+            }
+            
+            // 下蹲控制
+            if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+                if (!isJumping && (isOnGround || isOnTrain)) {
+                    isCrouching = true;
+                    player.classList.add('player-crouch');
+                }
+            }
+        });
+
+        // 松开下蹲键恢复站立
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+                isCrouching = false;
+                player.classList.remove('player-crouch');
+            }
+        });
+
+        // 防止空格键滚动页面
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && e.target === document.body) {
+                e.preventDefault();
+            }
+        });
+
+        // 启动游戏
+        initGame();
+    </script>
+</body>
+</html>

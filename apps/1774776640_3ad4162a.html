@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>冰火人 - Fire and Ice</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            font-family: 'Arial', sans-serif;
+        }
+        .game-container { text-align: center; }
+        h1 {
+            color: #fff; margin-bottom: 10px;
+            text-shadow: 0 0 10px rgba(255,100,100,0.5), 0 0 10px rgba(100,200,255,0.5);
+        }
+        .instructions { color: #aaa; margin-bottom: 15px; font-size: 14px; }
+        .controls {
+            display: flex; justify-content: center; gap: 40px;
+            margin-bottom: 15px; color: #fff; font-size: 13px;
+        }
+        .control-group { padding: 10px 20px; border-radius: 8px; background: rgba(255,255,255,0.1); }
+        .fire-controls { border: 2px solid #ff6b6b; }
+        .ice-controls { border: 2px solid #4ecdc4; }
+        .interaction { color: #ffd93d; margin-bottom: 10px; font-size: 13px; }
+        canvas { border: 3px solid #333; border-radius: 8px; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+        .level-info { color: #fff; margin-top: 15px; font-size: 16px; }
+        .message { color: #ffd93d; margin-top: 10px; font-size: 18px; font-weight: bold; }
+        .status { color: #aaa; margin-top: 5px; font-size: 12px; }
+        .audio-controls { 
+            color: #fff; margin-top: 10px; font-size: 13px; 
+            display: flex; justify-content: center; gap: 20px;
+        }
+        .audio-btn {
+            background: rgba(255,255,255,0.1); border: 1px solid #666;
+            color: #fff; padding: 5px 15px; border-radius: 5px;
+            cursor: pointer; font-size: 12px;
+        }
+        .audio-btn:hover { background: rgba(255,255,255,0.2); }
+        .audio-btn.active { background: rgba(100,200,100,0.3); border-color: #4a4; }
+
+        /* 开始界面样式 */
+        .start-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f1a 100%);
+            display: flex; justify-content: center; align-items: center;
+            overflow-y: auto; z-index: 1000;
+        }
+        .start-content {
+            max-width: 800px; padding: 40px; text-align: center;
+            background: rgba(255,255,255,0.05); border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+        .game-title {
+            font-size: 48px; margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(255,100,100,0.8), 0 0 20px rgba(100,200,255,0.8);
+            animation: titleGlow 2s ease-in-out infinite alternate;
+        }
+        @keyframes titleGlow {
+            from { text-shadow: 0 0 20px rgba(255,100,100,0.8), 0 0 20px rgba(100,200,255,0.8); }
+            to { text-shadow: 0 0 30px rgba(255,100,100,1), 0 0 30px rgba(100,200,255,1); }
+        }
+        .game-subtitle {
+            color: #aaa; font-size: 18px; margin-bottom: 30px;
+        }
+        .story-section, .features-section, .controls-section {
+            background: rgba(255,255,255,0.03);
+            border-radius: 15px; padding: 20px; margin: 20px 0;
+            text-align: left;
+        }
+        .story-section h3, .features-section h3, .controls-section h3 {
+            color: #ffd93d; margin-bottom: 15px; text-align: center;
+        }
+        .story-section p {
+            color: #ccc; line-height: 1.8; margin: 10px 0;
+        }
+        .features-section ul {
+            list-style: none; padding: 0;
+        }
+        .features-section li {
+            color: #ccc; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .features-section li:last-child { border-bottom: none; }
+        .controls-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+        }
+        .control-card {
+            background: rgba(255,255,255,0.05); border-radius: 10px;
+            padding: 15px; text-align: center;
+        }
+        .control-card.fire { border: 2px solid #ff6b6b; }
+        .control-card.ice { border: 2px solid #4ecdc4; }
+        .control-card h4 { margin-bottom: 10px; }
+        .control-card p { color: #ccc; margin: 5px 0; }
+        kbd {
+            background: rgba(255,255,255,0.2); padding: 2px 8px;
+            border-radius: 4px; font-family: monospace;
+        }
+        .tip {
+            color: #ffd93d; margin-top: 15px; font-style: italic;
+        }
+        .start-btn {
+            background: linear-gradient(135deg, #ff6b6b, #4ecdc4);
+            border: none; color: #fff; font-size: 24px;
+            padding: 15px 60px; border-radius: 50px;
+            cursor: pointer; margin: 30px 0;
+            box-shadow: 0 0 30px rgba(255,100,100,0.5);
+            transition: all 0.3s;
+        }
+        .start-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 50px rgba(255,100,100,0.8);
+        }
+        .author-info {
+            margin-top: 30px; padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .author-info p {
+            color: #888; margin: 5px 0; font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 开始界面 -->
+    <div id="startScreen" class="start-screen">
+        <div class="start-content">
+            <h1 class="game-title">🔥 冰火人 ❄️</h1>
+            <p class="game-subtitle">Fire and Ice - 双人合作解谜游戏</p>
+            
+            <div class="story-section">
+                <h3>📖 游戏背景</h3>
+                <p>在神秘的元素大陆上，火之少年与冰之少女是一对最佳搭档。</p>
+                <p>他们拥有不同的能力：火人可以在熔岩中行走，冰人可以在寒冰中穿梭。</p>
+                <p>只有互相配合、通力合作，才能穿越重重障碍，到达终点。</p>
+            </div>
+
+            <div class="features-section">
+                <h3>✨ 游戏特色</h3>
+                <ul>
+                    <li>🎮 <strong>10个精心设计的关卡</strong> - 从简单到困难，挑战不断升级</li>
+                    <li>🤝 <strong>双人合作机制</strong> - 互相推动、触发合体技</li>
+                    <li>⚡ <strong>合体技系统</strong> - 靠近时触发3秒无敌加速</li>
+                    <li>🎯 <strong>开关解谜</strong> - 踩下开关生成桥梁和平台</li>
+                    <li>💎 <strong>宝石收集</strong> - 收集关卡中的所有宝石</li>
+                    <li>🎵 <strong>音效与动态背景</strong> - 沉浸式游戏体验</li>
+                </ul>
+            </div>
+
+            <div class="controls-section">
+                <h3>🎮 操作说明</h3>
+                <div class="controls-grid">
+                    <div class="control-card fire">
+                        <h4>🔥 火人</h4>
+                        <p><kbd>W</kbd> 跳跃</p>
+                        <p><kbd>A</kbd> <kbd>D</kbd> 左右移动</p>
+                        <p><kbd>空格</kbd> 推动冰人</p>
+                    </div>
+                    <div class="control-card ice">
+                        <h4>❄️ 冰人</h4>
+                        <p><kbd>↑</kbd> 跳跃</p>
+                        <p><kbd>←</kbd> <kbd>→</kbd> 左右移动</p>
+                        <p><kbd>Enter</kbd> 推动火人</p>
+                    </div>
+                </div>
+                <p class="tip">💡 提示：两人靠近时可以触发合体技，获得3秒无敌加速！</p>
+            </div>
+
+            <button class="start-btn" onclick="startGame()">▶ 开始游戏</button>
+            
+            <div class="author-info">
+                <p>👨‍💻 作者：张智清</p>
+                <p>📅 制作时间：2025年3月</p>
+                <p>🎨 一个充满爱与创意的作品</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 游戏界面 -->
+    <div id="gameScreen" class="game-container" style="display:none;">
+        <h1>🔥 冰火人 ❄️</h1>
+        <div class="instructions">让火人和冰人分别到达对应颜色的门即可过关！</div>
+        <div class="interaction">💡 互动: 空格键 = 火人推冰人 | Enter键 = 冰人推火人 | 靠近可触发合体技!</div>
+        <div class="controls">
+            <div class="control-group fire-controls">
+                <strong style="color:#ff6b6b">火人 (WASD)</strong><br>W 跳跃 | A 左移 | D 右移 | 空格推
+            </div>
+            <div class="control-group ice-controls">
+                <strong style="color:#4ecdc4">冰人 (↑←→)</strong><br>↑ 跳跃 | ← 左移 | → 右移 | Enter推
+            </div>
+        </div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div class="level-info">关卡: <span id="levelNum">1</span> | 宝石: <span id="score">0</span></div>
+        <div class="message" id="message">按 R 重置关卡 | ESC 返回主菜单</div>
+        <div class="status" id="status"></div>
+        <div class="audio-controls">
+            <button class="audio-btn" id="bgmBtn" onclick="toggleBGM()">🎵 背景音乐: 关</button>
+            <button class="audio-btn" id="sfxBtn" onclick="toggleSFX()">🔊 音效: 开</button>
+            <button class="audio-btn" onclick="showStartScreen()">🏠 主菜单</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const levelNumEl = document.getElementById('levelNum');
+        const scoreEl = document.getElementById('score');
+        const messageEl = document.getElementById('message');
+        const statusEl = document.getElementById('status');
+
+        let currentLevel = 1, score = 0, gameWon = false;
+        let comboTimer = 0, comboActive = false;
+        let bgmEnabled = false, sfxEnabled = true;
+
+        // 音频上下文
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        // 生成音效
+        function createTone(freq, type, duration, volume = 0.3) {
+            if (!sfxEnabled) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.value = freq;
+            osc.type = type;
+            gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        // 各种音效
+        const sfx = {
+            jump: () => createTone(400, 'sine', 0.15, 0.2),
+            land: () => createTone(200, 'triangle', 0.1, 0.15),
+            push: () => {
+                createTone(300, 'sawtooth', 0.1, 0.2);
+                setTimeout(() => createTone(400, 'sawtooth', 0.1, 0.2), 50);
+            },
+            combo: () => {
+                [523, 659, 784, 1047].forEach((f, i) => 
+                    setTimeout(() => createTone(f, 'square', 0.3, 0.15), i * 100));
+            },
+            diamond: () => {
+                createTone(880, 'sine', 0.1, 0.2);
+                setTimeout(() => createTone(1760, 'sine', 0.2, 0.15), 50);
+            },
+            win: () => {
+                [523, 659, 784, 1047, 1319].forEach((f, i) => 
+                    setTimeout(() => createTone(f, 'triangle', 0.4, 0.2), i * 150));
+            },
+            die: () => {
+                createTone(200, 'sawtooth', 0.3, 0.3);
+                setTimeout(() => createTone(150, 'sawtooth', 0.4, 0.3), 100);
+            },
+            switch: () => createTone(600, 'square', 0.15, 0.2),
+            levelComplete: () => {
+                [440, 554, 659, 880].forEach((f, i) => 
+                    setTimeout(() => createTone(f, 'triangle', 0.3, 0.2), i * 200));
+            }
+        };
+
+        // 背景音乐 - 使用Web Audio API生成简单的循环旋律
+        let bgmOscillators = [];
+        let bgmInterval = null;
+        const bgmNotes = [261.63, 293.66, 329.63, 349.23, 392.00, 349.23, 329.63, 293.66]; // C大调音阶
+        
+        function playBGM() {
+            if (!bgmEnabled || bgmInterval) return;
+            let noteIndex = 0;
+            bgmInterval = setInterval(() => {
+                if (!bgmEnabled) {
+                    clearInterval(bgmInterval);
+                    bgmInterval = null;
+                    return;
+                }
+                const freq = bgmNotes[noteIndex % bgmNotes.length];
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.frequency.value = freq / 2; // 低八度
+                osc.type = 'sine';
+                gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.8);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.8);
+                noteIndex++;
+            }, 1000);
+        }
+
+        function stopBGM() {
+            if (bgmInterval) {
+                clearInterval(bgmInterval);
+                bgmInterval = null;
+            }
+        }
+
+        function toggleBGM() {
+            bgmEnabled = !bgmEnabled;
+            document.getElementById('bgmBtn').textContent = bgmEnabled ? '🎵 背景音乐: 开' : '🎵 背景音乐: 关';
+            document.getElementById('bgmBtn').classList.toggle('active', bgmEnabled);
+            if (bgmEnabled) {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                playBGM();
+            } else {
+                stopBGM();
+            }
+        }
+
+        function toggleSFX() {
+            sfxEnabled = !sfxEnabled;
+            document.getElementById('sfxBtn').textContent = sfxEnabled ? '🔊 音效: 开' : '🔊 音效: 关';
+            document.getElementById('sfxBtn').classList.toggle('active', sfxEnabled);
+        }
+
+        // 初始化音频按钮状态
+        document.getElementById('sfxBtn').classList.add('active');
+
+        const fireBoy = { 
+            x: 50, y: 500, w: 30, h: 40, 
+            vx: 0, vy: 0, speed: 5, jump: 12, 
+            onGround: false, reached: false,
+            pushCooldown: 0, beingPushed: {x:0, y:0, timer:0}
+        };
+        const iceGirl = { 
+            x: 100, y: 500, w: 30, h: 40, 
+            vx: 0, vy: 0, speed: 5, jump: 12, 
+            onGround: false, reached: false,
+            pushCooldown: 0, beingPushed: {x:0, y:0, timer:0}
+        };
+
+        const levels = [
+            // 关卡 1: 基础教程
+            {
+                platforms: [{x:0,y:550,w:800,h:50},{x:200,y:450,w:150,h:20},{x:450,y:350,w:150,h:20},{x:650,y:250,w:150,h:20}],
+                firePools: [], icePools: [], greenPools: [],
+                switches: [],
+                fireDoor: {x:720,y:210,w:40,h:40}, iceDoor: {x:670,y:210,w:40,h:40},
+                diamonds: [{x:275,y:410,c:false},{x:525,y:310,c:false},{x:725,y:210,c:false}]
+            },
+            // 关卡 2: 危险区域
+            {
+                platforms: [{x:0,y:550,w:200,h:50},{x:300,y:550,w:200,h:50},{x:600,y:550,w:200,h:50},{x:150,y:420,w:100,h:20},{x:350,y:350,w:100,h:20},{x:550,y:280,w:100,h:20},{x:250,y:200,w:300,h:20}],
+                firePools: [{x:200,y:530,w:100,h:20}], icePools: [{x:500,y:530,w:100,h:20}], greenPools: [],
+                switches: [{x:400,y:330,w:30,h:10,type:'bridge',active:false,targets:[{x:500,y:400,w:100,h:20}]}],
+                fireDoor: {x:480,y:160,w:40,h:40}, iceDoor: {x:280,y:160,w:40,h:40},
+                diamonds: [{x:200,y:380,c:false},{x:400,y:310,c:false},{x:600,y:240,c:false}]
+            },
+            // 关卡 3: 毒池挑战
+            {
+                platforms: [{x:0,y:550,w:150,h:50},{x:250,y:550,w:100,h:50},{x:450,y:550,w:100,h:50},{x:650,y:550,w:150,h:50},{x:100,y:450,w:80,h:20},{x:250,y:380,w:80,h:20},{x:400,y:320,w:80,h:20},{x:550,y:260,w:80,h:20},{x:700,y:200,w:80,h:20},{x:350,y:150,w:100,h:20}],
+                firePools: [], icePools: [], greenPools: [{x:150,y:530,w:100,h:20},{x:350,y:530,w:100,h:20},{x:550,y:530,w:100,h:20}],
+                switches: [{x:380,y:300,w:30,h:10,type:'platform',active:false}],
+                fireDoor: {x:400,y:110,w:40,h:40}, iceDoor: {x:360,y:110,w:40,h:40},
+                diamonds: [{x:140,y:410,c:false},{x:290,y:340,c:false},{x:440,y:280,c:false},{x:590,y:220,c:false},{x:740,y:160,c:false}]
+            },
+            // 关卡 4: 迷宫穿梭
+            {
+                platforms: [
+                    {x:0,y:550,w:100,h:50},{x:200,y:550,w:100,h:50},{x:400,y:550,w:100,h:50},{x:600,y:550,w:200,h:50},
+                    {x:100,y:480,w:50,h:20},{x:300,y:480,w:50,h:20},{x:500,y:480,w:50,h:20},
+                    {x:150,y:400,w:50,h:20},{x:350,y:400,w:50,h:20},{x:550,y:400,w:50,h:20},
+                    {x:200,y:320,w:50,h:20},{x:400,y:320,w:50,h:20},{x:600,y:320,w:50,h:20},
+                    {x:250,y:240,w:300,h:20}
+                ],
+                firePools: [{x:100,y:530,w:100,h:20},{x:300,y:530,w:100,h:20},{x:500,y:530,w:100,h:20}],
+                icePools: [{x:150,y:450,w:50,h:30},{x:350,y:450,w:50,h:30},{x:550,y:450,w:50,h:30}],
+                greenPools: [],
+                switches: [],
+                fireDoor: {x:480,y:200,w:40,h:40}, iceDoor: {x:280,y:200,w:40,h:40},
+                diamonds: [{x:125,y:440,c:false},{x:325,y:440,c:false},{x:525,y:440,c:false},{x:225,y:280,c:false},{x:425,y:280,c:false}]
+            },
+            // 关卡 5: 高空跳跃
+            {
+                platforms: [
+                    {x:0,y:550,w:150,h:50},{x:700,y:550,w:100,h:50},
+                    {x:200,y:500,w:80,h:20},{x:350,y:450,w:80,h:20},{x:500,y:400,w:80,h:20},{x:650,y:350,w:80,h:20},
+                    {x:100,y:380,w:80,h:20},{x:250,y:320,w:80,h:20},{x:400,y:260,w:80,h:20},{x:550,y:200,w:80,h:20},
+                    {x:300,y:150,w:200,h:20}
+                ],
+                firePools: [{x:150,y:530,w:550,h:20}],
+                icePools: [], greenPools: [],
+                switches: [{x:380,y:130,w:40,h:10,type:'bridge',active:false,targets:[{x:150,y:500,w:50,h:20}]}],
+                fireDoor: {x:420,y:110,w:40,h:40}, iceDoor: {x:340,y:110,w:40,h:40},
+                diamonds: [{x:240,y:460,c:false},{x:390,y:410,c:false},{x:540,y:360,c:false},{x:690,y:310,c:false},{x:140,y:340,c:false},{x:290,y:280,c:false},{x:440,y:220,c:false}]
+            },
+            // 关卡 6: 对称挑战
+            {
+                platforms: [
+                    {x:0,y:550,w:100,h:50},{x:700,y:550,w:100,h:50},
+                    {x:150,y:480,w:100,h:20},{x:550,y:480,w:100,h:20},
+                    {x:100,y:400,w:80,h:20},{x:620,y:400,w:80,h:20},
+                    {x:200,y:350,w:80,h:20},{x:520,y:350,w:80,h:20},
+                    {x:150,y:280,w:60,h:20},{x:590,y:280,w:60,h:20},
+                    {x:300,y:250,w:200,h:20},{x:350,y:150,w:100,h:20}
+                ],
+                firePools: [{x:100,y:530,w:200,h:20},{x:350,y:530,w:100,h:20}],
+                icePools: [{x:500,y:530,w:200,h:20},{x:350,y:530,w:100,h:20}],
+                greenPools: [{x:350,y:530,w:100,h:20}],
+                switches: [
+                    {x:180,y:260,w:30,h:10,type:'bridge',active:false,targets:[{x:280,y:350,w:40,h:20}]},
+                    {x:590,y:260,w:30,h:10,type:'bridge',active:false,targets:[{x:480,y:350,w:40,h:20}]}
+                ],
+                fireDoor: {x:420,y:110,w:40,h:40}, iceDoor: {x:340,y:110,w:40,h:40},
+                diamonds: [{x:200,y:440,c:false},{x:600,y:440,c:false},{x:140,y:360,c:false},{x:660,y:360,c:false},{x:240,y:310,c:false},{x:560,y:310,c:false},{x:400,y:210,c:false}]
+            },
+            // 关卡 7: 终极挑战
+            {
+                platforms: [
+                    {x:0,y:550,w:80,h:50},{x:720,y:550,w:80,h:50},
+                    {x:120,y:500,w:60,h:20},{x:250,y:480,w:60,h:20},{x:380,y:460,w:60,h:20},{x:510,y:440,w:60,h:20},{x:640,y:420,w:60,h:20},
+                    {x:80,y:400,w:50,h:20},{x:200,y:380,w:50,h:20},{x:320,y:360,w:50,h:20},{x:440,y:340,w:50,h:20},{x:560,y:320,w:50,h:20},{x:680,y:300,w:50,h:20},
+                    {x:150,y:280,w:40,h:20},{x:300,y:260,w:40,h:20},{x:450,y:240,w:40,h:20},{x:600,y:220,w:40,h:20},
+                    {x:250,y:180,w:300,h:20},{x:380,y:100,w:40,h:20}
+                ],
+                firePools: [{x:80,y:530,w:640,h:20}],
+                icePools: [{x:150,y:450,w:500,h:20}],
+                greenPools: [{x:200,y:350,w:400,h:20}],
+                switches: [
+                    {x:280,y:160,w:30,h:10,type:'bridge',active:false,targets:[{x:100,y:280,w:50,h:20}]},
+                    {x:490,y:160,w:30,h:10,type:'bridge',active:false,targets:[{x:650,y:280,w:50,h:20}]}
+                ],
+                fireDoor: {x:430,y:60,w:40,h:40}, iceDoor: {x:370,y:60,w:40,h:40},
+                diamonds: [
+                    {x:150,y:460,c:false},{x:280,y:440,c:false},{x:410,y:420,c:false},{x:540,y:400,c:false},{x:670,y:380,c:false},
+                    {x:105,y:360,c:false},{x:225,y:340,c:false},{x:345,y:320,c:false},{x:465,y:300,c:false},{x:585,y:280,c:false},{x:705,y:260,c:false},
+                    {x:170,y:240,c:false},{x:320,y:220,c:false},{x:470,y:200,c:false},{x:620,y:180,c:false}
+                ]
+            },
+            // 关卡 8: 镜像世界
+            {
+                platforms: [
+                    {x:0,y:550,w:100,h:50},{x:700,y:550,w:100,h:50},
+                    {x:150,y:500,w:500,h:20},
+                    {x:50,y:420,w:100,h:20},{x:650,y:420,w:100,h:20},
+                    {x:200,y:350,w:80,h:20},{x:520,y:350,w:80,h:20},
+                    {x:100,y:280,w:60,h:20},{x:640,y:280,w:60,h:20},
+                    {x:300,y:220,w:200,h:20},
+                    {x:150,y:150,w:100,h:20},{x:550,y:150,w:100,h:20},
+                    {x:350,y:100,w:100,h:20}
+                ],
+                firePools: [{x:100,y:530,w:600,h:20}],
+                icePools: [],
+                greenPools: [{x:250,y:350,w:300,h:20}],
+                switches: [
+                    {x:340,y:200,w:40,h:10,type:'bridge',active:false,targets:[{x:230,y:280,w:70,h:20},{x:500,y:280,w:70,h:20}]}
+                ],
+                fireDoor: {x:420,y:60,w:40,h:40}, iceDoor: {x:340,y:60,w:40,h:40},
+                diamonds: [
+                    {x:100,y:470,c:false},{x:700,y:470,c:false},{x:100,y:390,c:false},{x:700,y:390,c:false},
+                    {x:240,y:310,c:false},{x:560,y:310,c:false},{x:130,y:240,c:false},{x:670,y:240,c:false},
+                    {x:200,y:110,c:false},{x:600,y:110,c:false}
+                ]
+            },
+            // 关卡 9: 终极迷宫
+            {
+                platforms: [
+                    {x:0,y:550,w:80,h:50},{x:720,y:550,w:80,h:50},
+                    {x:100,y:500,w:60,h:20},{x:250,y:500,w:60,h:20},{x:400,y:500,w:60,h:20},{x:550,y:500,w:60,h:20},{x:650,y:500,w:60,h:20},
+                    {x:50,y:430,w:50,h:20},{x:180,y:430,w:50,h:20},{x:320,y:430,w:50,h:20},{x:480,y:430,w:50,h:20},{x:620,y:430,w:50,h:20},{x:720,y:430,w:50,h:20},
+                    {x:100,y:360,w:50,h:20},{x:250,y:360,w:50,h:20},{x:400,y:360,w:50,h:20},{x:550,y:360,w:50,h:20},{x:650,y:360,w:50,h:20},
+                    {x:50,y:290,w:50,h:20},{x:180,y:290,w:50,h:20},{x:320,y:290,w:50,h:20},{x:480,y:290,w:50,h:20},{x:620,y:290,w:50,h:20},{x:720,y:290,w:50,h:20},
+                    {x:100,y:220,w:50,h:20},{x:250,y:220,w:50,h:20},{x:400,y:220,w:50,h:20},{x:550,y:220,w:50,h:20},{x:650,y:220,w:50,h:20},
+                    {x:200,y:150,w:400,h:20}
+                ],
+                firePools: [
+                    {x:80,y:530,w:120,h:20},{x:280,y:530,w:120,h:20},{x:480,y:530,w:120,h:20},
+                    {x:180,y:390,w:140,h:20},{x:420,y:390,w:140,h:20}
+                ],
+                icePools: [
+                    {x:180,y:460,w:140,h:20},{x:420,y:460,w:140,h:20},
+                    {x:80,y:320,w:120,h:20},{x:280,y:320,w:120,h:20},{x:480,y:320,w:120,h:20}
+                ],
+                greenPools: [{x:300,y:250,w:200,h:20}],
+                switches: [
+                    {x:130,y:130,w:30,h:10,type:'bridge',active:false,targets:[{x:160,y:220,w:40,h:20}]},
+                    {x:640,y:130,w:30,h:10,type:'bridge',active:false,targets:[{x:600,y:220,w:40,h:20}]}
+                ],
+                fireDoor: {x:420,y:110,w:40,h:40}, iceDoor: {x:340,y:110,w:40,h:40},
+                diamonds: [
+                    {x:130,y:470,c:false},{x:280,y:470,c:false},{x:430,y:470,c:false},{x:580,y:470,c:false},{x:680,y:470,c:false},
+                    {x:75,y:400,c:false},{x:205,y:400,c:false},{x:345,y:400,c:false},{x:505,y:400,c:false},{x:645,y:400,c:false},{x:745,y:400,c:false},
+                    {x:130,y:260,c:false},{x:280,y:260,c:false},{x:430,y:260,c:false},{x:580,y:260,c:false},{x:680,y:260,c:false}
+                ]
+            },
+            // 关卡 10: 终极boss关
+            {
+                platforms: [
+                    {x:0,y:550,w:60,h:50},{x:740,y:550,w:60,h:50},
+                    {x:100,y:520,w:50,h:20},{x:250,y:500,w:50,h:20},{x:400,y:480,w:50,h:20},{x:550,y:500,w:50,h:20},{x:650,y:520,w:50,h:20},
+                    {x:50,y:440,w:40,h:20},{x:150,y:420,w:40,h:20},{x:300,y:400,w:40,h:20},{x:460,y:400,w:40,h:20},{x:610,y:420,w:40,h:20},{x:720,y:440,w:40,h:20},
+                    {x:100,y:360,w:40,h:20},{x:250,y:340,w:40,h:20},{x:400,y:320,w:40,h:20},{x:550,y:340,w:40,h:20},{x:650,y:360,w:40,h:20},
+                    {x:50,y:280,w:40,h:20},{x:200,y:260,w:40,h:20},{x:350,y:240,w:40,h:20},{x:500,y:240,w:40,h:20},{x:650,y:260,w:40,h:20},{x:720,y:280,w:40,h:20},
+                    {x:150,y:200,w:500,h:20},{x:350,y:120,w:100,h:20}
+                ],
+                firePools: [
+                    {x:60,y:530,w:80,h:20},{x:200,y:530,w:50,h:20},{x:350,y:530,w:50,h:20},{x:500,y:530,w:50,h:20},{x:660,y:530,w:80,h:20},
+                    {x:90,y:380,w:60,h:20},{x:290,y:380,w:60,h:20},{x:490,y:380,w:60,h:20}
+                ],
+                icePools: [
+                    {x:150,y:530,w:50,h:20},{x:300,y:530,w:50,h:20},{x:450,y:530,w:50,h:20},{x:600,y:530,w:60,h:20},
+                    {x:190,y:300,w:60,h:20},{x:390,y:300,w:60,h:20},{x:590,y:300,w:60,h:20}
+                ],
+                greenPools: [
+                    {x:250,y:530,w:50,h:20},{x:400,y:530,w:50,h:20},{x:550,y:530,w:50,h:20},
+                    {x:140,y:300,w:50,h:20},{x:340,y:300,w:50,h:20},{x:540,y:300,w:50,h:20}
+                ],
+                switches: [
+                    {x:180,y:180,w:30,h:10,type:'bridge',active:false,targets:[{x:250,y:320,w:50,h:20}]},
+                    {x:400,y:180,w:30,h:10,type:'bridge',active:false,targets:[{x:375,y:240,w:50,h:20}]},
+                    {x:590,y:180,w:30,h:10,type:'bridge',active:false,targets:[{x:500,y:320,w:50,h:20}]}
+                ],
+                fireDoor: {x:420,y:80,w:40,h:40}, iceDoor: {x:340,y:80,w:40,h:40},
+                diamonds: [
+                    {x:125,y:490,c:false},{x:275,y:470,c:false},{x:425,y:450,c:false},{x:575,y:470,c:false},{x:675,y:490,c:false},
+                    {x:70,y:410,c:false},{x:170,y:390,c:false},{x:320,y:370,c:false},{x:480,y:370,c:false},{x:630,y:390,c:false},{x:740,y:410,c:false},
+                    {x:120,y:330,c:false},{x:270,y:310,c:false},{x:420,y:290,c:false},{x:570,y:310,c:false},{x:670,y:330,c:false},
+                    {x:70,y:250,c:false},{x:220,y:230,c:false},{x:370,y:210,c:false},{x:520,y:210,c:false},{x:670,y:230,c:false}
+                ]
+            }
+        ];
+
+        let lvl = levels[0];
+        const keys = {};
+        const GRAVITY = 0.6, FRICTION = 0.8;
+
+        document.addEventListener('keydown', e => { 
+            keys[e.key] = true; 
+            keys[e.code] = true;
+            if(e.key==='r'||e.key==='R') resetLevel();
+            if(e.key==='Escape') showStartScreen();
+            if(e.code==='Space' && fireBoy.pushCooldown <= 0) pushPlayer(fireBoy, iceGirl, 1);
+            if(e.key==='Enter' && iceGirl.pushCooldown <= 0) pushPlayer(iceGirl, fireBoy, -1);
+        });
+        document.addEventListener('keyup', e => { 
+            keys[e.key] = false; 
+            keys[e.code] = false;
+        });
+
+        function resetLevel() {
+            lvl = levels[currentLevel-1];
+            fireBoy.x = 50; fireBoy.y = 500; fireBoy.vx = 0; fireBoy.vy = 0; 
+            fireBoy.reached = false; fireBoy.pushCooldown = 0;
+            fireBoy.beingPushed = {x:0, y:0, timer:0};
+            iceGirl.x = 100; iceGirl.y = 500; iceGirl.vx = 0; iceGirl.vy = 0; 
+            iceGirl.reached = false; iceGirl.pushCooldown = 0;
+            iceGirl.beingPushed = {x:0, y:0, timer:0};
+            gameWon = false; comboActive = false; comboTimer = 0;
+            if(lvl.switches) lvl.switches.forEach(s => s.active = false);
+            messageEl.textContent = '按 R 重置关卡 | ESC 返回主菜单';
+            statusEl.textContent = '';
+        }
+
+        // 显示/隐藏开始界面
+        function showStartScreen() {
+            document.getElementById('startScreen').style.display = 'flex';
+            document.getElementById('gameScreen').style.display = 'none';
+            stopBGM();
+        }
+
+        function startGame() {
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('gameScreen').style.display = 'block';
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            resetLevel();
+        }
+
+        // 推动机制
+        function pushPlayer(pusher, target, direction) {
+            const dist = Math.hypot(pusher.x - target.x, pusher.y - target.y);
+            if (dist > 80) {
+                statusEl.textContent = '太远了，靠近一点才能推动！';
+                setTimeout(() => statusEl.textContent = '', 2000);
+                return;
+            }
+            
+            pusher.pushCooldown = 30;
+            target.beingPushed = {
+                x: direction * 15,
+                y: -5,
+                timer: 10
+            };
+            
+            // 检查是否触发合体技
+            if (dist < 50) {
+                activateCombo();
+            }
+            
+            sfx.push();
+            statusEl.textContent = pusher === fireBoy ? '火人推了冰人！' : '冰人推了火人！';
+            setTimeout(() => statusEl.textContent = '', 1500);
+        }
+
+        // 合体技 - 双方获得短暂加速和无敌
+        function activateCombo() {
+            comboActive = true;
+            comboTimer = 180; // 3秒
+            sfx.combo();
+            statusEl.textContent = '🔥❄️ 合体技激活！无敌加速！';
+        }
+
+        function updatePlayer(p, left, right, jump, isFire) {
+            const speed = comboActive ? p.speed * 1.5 : p.speed;
+            
+            // 处理被推动
+            if (p.beingPushed.timer > 0) {
+                p.vx = p.beingPushed.x;
+                p.vy = p.beingPushed.y;
+                p.beingPushed.timer--;
+            } else {
+                // 正常移动
+                if (keys[left]) p.vx = -speed;
+                else if (keys[right]) p.vx = speed;
+                else p.vx *= FRICTION;
+
+                if (keys[jump] && p.onGround) { 
+                    p.vy = -p.jump; 
+                    p.onGround = false;
+                    sfx.jump(); 
+                }
+            }
+
+            p.vy += GRAVITY;
+            p.x += p.vx; 
+            p.y += p.vy;
+            p.onGround = false;
+
+            // 边界
+            if (p.x < 0) p.x = 0;
+            if (p.x + p.w > canvas.width) p.x = canvas.width - p.w;
+
+            // 平台碰撞
+            let wasOnGround = p.onGround;
+            lvl.platforms.forEach(plat => {
+                if (p.x < plat.x + plat.w && p.x + p.w > plat.x && 
+                    p.y + p.h > plat.y && p.y + p.h < plat.y + plat.h + 20 && p.vy > 0) {
+                    p.y = plat.y - p.h; p.vy = 0; p.onGround = true;
+                    if (!wasOnGround) sfx.land();
+                }
+            });
+
+            // 开关检测
+            if (lvl.switches) {
+                lvl.switches.forEach(sw => {
+                    if (p.x + p.w/2 > sw.x && p.x + p.w/2 < sw.x + sw.w &&
+                        p.y + p.h > sw.y && p.y < sw.y + sw.h) {
+                        if (!sw.active) sfx.switch();
+                        sw.active = true;
+                    }
+                });
+            }
+
+            // 危险区域
+            if (!comboActive) {
+                const allPools = [...lvl.firePools, ...lvl.icePools, ...lvl.greenPools];
+                allPools.forEach(pool => {
+                    if (p.x + p.w/2 > pool.x && p.x + p.w/2 < pool.x + pool.w && 
+                        p.y + p.h > pool.y && p.y < pool.y + pool.h) {
+                        if ((isFire && lvl.icePools.includes(pool)) || 
+                            (!isFire && lvl.firePools.includes(pool)) || 
+                            lvl.greenPools.includes(pool)) {
+                            sfx.die();
+                            resetLevel(); 
+                            messageEl.textContent = '游戏结束！小心危险区域！';
+                        }
+                    }
+                });
+            }
+
+            // 宝石收集
+            lvl.diamonds.forEach(d => {
+                if (!d.c && Math.hypot(p.x+p.w/2-d.x, p.y+p.h/2-d.y) < 20) { 
+                    d.c = true; score++; scoreEl.textContent = score; 
+                    sfx.diamond();
+                }
+            });
+
+            // 门检测
+            const door = isFire ? lvl.fireDoor : lvl.iceDoor;
+            if (p.x + p.w/2 > door.x && p.x + p.w/2 < door.x + door.w && 
+                p.y + p.h > door.y && p.y < door.y + door.h) {
+                p.reached = true;
+            }
+
+            // 冷却
+            if (p.pushCooldown > 0) p.pushCooldown--;
+        }
+
+        function checkWin() {
+            if (fireBoy.reached && iceGirl.reached && !gameWon) {
+                gameWon = true;
+                sfx.win();
+                if (currentLevel < levels.length) {
+                    messageEl.textContent = '关卡完成！3秒后进入下一关...';
+                    setTimeout(() => { 
+                        currentLevel++; 
+                        levelNumEl.textContent = currentLevel;
+                        sfx.levelComplete();
+                        resetLevel(); 
+                    }, 3000);
+                } else {
+                    messageEl.textContent = '🎉 恭喜通关所有关卡！按 R 重新开始';
+                }
+            }
+        }
+
+        // 背景粒子
+        let particles = [];
+        for (let i = 0; i < 50; i++) {
+            particles.push({
+                x: Math.random() * 800,
+                y: Math.random() * 600,
+                size: Math.random() * 3 + 1,
+                speedY: Math.random() * 0.5 + 0.1,
+                opacity: Math.random() * 0.5 + 0.1
+            });
+        }
+
+        function draw() {
+            // 动态背景
+            const grad = ctx.createLinearGradient(0,0,0,canvas.height);
+            if (comboActive) {
+                grad.addColorStop(0,'#4a1a4a'); grad.addColorStop(0.5,'#2e162e'); grad.addColorStop(1,'#1a0a1a');
+            } else {
+                grad.addColorStop(0,'#1a1a2e'); grad.addColorStop(0.5,'#16213e'); grad.addColorStop(1,'#0f0f1a');
+            }
+            ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+            // 绘制背景粒子
+            particles.forEach(p => {
+                p.y -= p.speedY;
+                if (p.y < 0) p.y = 600;
+                ctx.fillStyle = comboActive ? 
+                    `rgba(255,100,255,${p.opacity})` : 
+                    `rgba(100,150,255,${p.opacity})`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 平台
+            ctx.fillStyle = '#555';
+            lvl.platforms.forEach(p => { 
+                ctx.fillRect(p.x,p.y,p.w,p.h); 
+                ctx.strokeStyle='#777'; ctx.strokeRect(p.x,p.y,p.w,p.h); 
+            });
+
+            // 开关生成的平台
+            if (lvl.switches) {
+                lvl.switches.forEach(sw => {
+                    if (sw.active && sw.targets) {
+                        ctx.fillStyle = '#aa0';
+                        sw.targets.forEach(t => ctx.fillRect(t.x,t.y,t.w,t.h));
+                    }
+                    // 绘制开关
+                    ctx.fillStyle = sw.active ? '#0f0' : '#666';
+                    ctx.fillRect(sw.x, sw.y, sw.w, sw.h);
+                });
+            }
+
+            // 危险池
+            lvl.firePools.forEach(p => { ctx.fillStyle='#ff4444'; ctx.fillRect(p.x,p.y,p.w,p.h); });
+            lvl.icePools.forEach(p => { ctx.fillStyle='#44ffff'; ctx.fillRect(p.x,p.y,p.w,p.h); });
+            lvl.greenPools.forEach(p => { ctx.fillStyle='#44ff44'; ctx.fillRect(p.x,p.y,p.w,p.h); });
+
+            // 宝石
+            lvl.diamonds.forEach(d => {
+                if (!d.c) {
+                    ctx.fillStyle = comboActive ? '#ff00ff' : '#ffd700';
+                    ctx.beginPath();
+                    ctx.moveTo(d.x, d.y - 10);
+                    ctx.lineTo(d.x + 10, d.y);
+                    ctx.lineTo(d.x, d.y + 10);
+                    ctx.lineTo(d.x - 10, d.y);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            });
+
+            // 门
+            const fd = lvl.fireDoor;
+            ctx.fillStyle = fireBoy.reached ? '#ffaa00' : '#ff4444';
+            ctx.fillRect(fd.x, fd.y, fd.w, fd.h);
+            ctx.fillStyle = '#fff'; ctx.font = '12px Arial'; 
+            ctx.fillText('火', fd.x+12, fd.y+25);
+
+            const id = lvl.iceDoor;
+            ctx.fillStyle = iceGirl.reached ? '#00aaff' : '#4444ff';
+            ctx.fillRect(id.x, id.y, id.w, id.h);
+            ctx.fillText('冰', id.x+12, id.y+25);
+
+            // 火人
+            ctx.fillStyle = comboActive ? '#ff00ff' : '#ff6b6b';
+            ctx.fillRect(fireBoy.x, fireBoy.y, fireBoy.w, fireBoy.h);
+            ctx.fillStyle = '#fff'; 
+            ctx.fillRect(fireBoy.x+5, fireBoy.y+8, 6, 6); 
+            ctx.fillRect(fireBoy.x+19, fireBoy.y+8, 6, 6);
+            if (fireBoy.pushCooldown > 0) {
+                ctx.fillStyle = '#ff0';
+                ctx.fillText('!', fireBoy.x+12, fireBoy.y-5);
+            }
+
+            // 冰人
+            ctx.fillStyle = comboActive ? '#ff00ff' : '#4ecdc4';
+            ctx.fillRect(iceGirl.x, iceGirl.y, iceGirl.w, iceGirl.h);
+            ctx.fillStyle = '#fff'; 
+            ctx.fillRect(iceGirl.x+5, iceGirl.y+8, 6, 6); 
+            ctx.fillRect(iceGirl.x+19, iceGirl.y+8, 6, 6);
+            if (iceGirl.pushCooldown > 0) {
+                ctx.fillStyle = '#ff0';
+                ctx.fillText('!', iceGirl.x+12, iceGirl.y-5);
+            }
+
+            // 连线（靠近时）
+            const dist = Math.hypot(fireBoy.x - iceGirl.x, fireBoy.y - iceGirl.y);
+            if (dist < 80) {
+                ctx.strokeStyle = comboActive ? '#f0f' : '#ff0';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(fireBoy.x + fireBoy.w/2, fireBoy.y + fireBoy.h/2);
+                ctx.lineTo(iceGirl.x + iceGirl.w/2, iceGirl.y + iceGirl.h/2);
+                ctx.stroke();
+            }
+        }
+
+        function gameLoop() {
+            if (comboTimer > 0) {
+                comboTimer--;
+                if (comboTimer <= 0) {
+                    comboActive = false;
+                    statusEl.textContent = '合体技结束';
+                    setTimeout(() => statusEl.textContent = '', 1000);
+                }
+            }
+            
+            updatePlayer(fireBoy, 'a', 'd', 'w', true);
+            updatePlayer(iceGirl, 'ArrowLeft', 'ArrowRight', 'ArrowUp', false);
+            checkWin();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        resetLevel();
+        gameLoop();
+    </script>
+</body>
+</html>

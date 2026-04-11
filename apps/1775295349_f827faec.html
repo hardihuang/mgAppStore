@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人类大战外星人</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0c1421 0%, #1a2330 50%, #2d1b69 100%);
+            background-attachment: fixed;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ———— 开始界面（全屏遮罩） ———— */
+        #startScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(135deg, #080e1a 0%, #111827 50%, #1f1246 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            padding: 20px;
+        }
+
+        .game-title-main {
+            font-size: 52px;
+            color: #00ffcc;
+            text-shadow: 0 0 20px #00ffcc, 0 0 40px #00997a;
+            margin-bottom: 30px;
+            letter-spacing: 3px;
+            text-align: center;
+        }
+
+        .rule-box {
+            background: rgba(0,0,0,0.5);
+            border: 2px solid #00ffcc;
+            border-radius: 12px;
+            padding: 25px 35px;
+            max-width: 700px;
+            box-shadow: 0 0 20px rgba(0,255,204,0.3);
+            margin-bottom: 30px;
+        }
+
+        .rule-title {
+            font-size: 24px;
+            color: #00ffcc;
+            text-align: center;
+            margin-bottom: 15px;
+            text-shadow: 0 0 10px #00ffcc;
+        }
+
+        .rule-text {
+            font-size: 16px;
+            line-height: 1.7;
+            margin-bottom: 10px;
+        }
+
+        .rule-text strong {
+            color: #00ffcc;
+        }
+
+        .start-btn {
+            padding: 14px 40px;
+            font-size: 22px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00ffcc, #00e6b8);
+            border: none;
+            border-radius: 8px;
+            color: #000;
+            cursor: pointer;
+            transition: 0.3s;
+            box-shadow: 0 0 15px #00ffcc;
+        }
+
+        .start-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 25px #00ffcc;
+        }
+
+        /* ———— 游戏界面（默认隐藏） ———— */
+        .title {
+            font-size: 32px;
+            color: #00ffcc;
+            margin-bottom: 15px;
+            text-shadow: 0 0 15px #00ffcc, 0 0 30px #00997a;
+            letter-spacing: 2px;
+            display: none;
+        }
+
+        .game-info {
+            display: flex;
+            gap: 40px;
+            font-size: 18px;
+            margin-bottom: 15px;
+            padding: 10px 20px;
+            background: rgba(0,0,0,0.4);
+            border-radius: 10px;
+            border: 1px solid #00ffcc;
+            display: none;
+        }
+
+        .btn-box {
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .game-btn {
+            padding: 10px 25px;
+            margin: 0 8px;
+            background: linear-gradient(45deg, #00ffcc, #00e6b8);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            color: #000;
+            transition: 0.2s;
+        }
+
+        .game-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 10px #00ffcc;
+        }
+
+        .main-container {
+            display: flex;
+            gap: 20px;
+            position: relative;
+            align-items: center;
+            display: none;
+        }
+
+        .tower-menu {
+            width: 140px;
+            background: rgba(26,35,48,0.9);
+            border: 2px solid #00ffcc;
+            border-radius: 10px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 0 15px rgba(0,255,204,0.3);
+        }
+
+        .tower-card {
+            width: 110px;
+            height: 80px;
+            background: rgba(37,48,64,0.9);
+            border: 2px solid #fff;
+            border-radius: 6px;
+            text-align: center;
+            padding: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .tower-card.active {
+            border-color: #ff3366;
+            background: rgba(255,51,102,0.2);
+            box-shadow: 0 0 8px #ff3366;
+        }
+
+        .battle-ground {
+            width: 800px;
+            height: 480px;
+            background: rgba(21,28,40,0.8);
+            border: 3px solid #00ffcc;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,255,204,0.4);
+            display: grid;
+            grid-template-columns: repeat(6, 133px);
+            grid-template-rows: repeat(4, 120px);
+        }
+
+        .grid-cell {
+            border: 2px solid rgba(0,255,204,0.3);
+            position: relative;
+            transition: 0.2s;
+        }
+
+        .grid-cell.placeable {
+            border-color: rgba(0,255,204,0.8);
+            background: rgba(0,255,204,0.05);
+        }
+
+        .grid-cell.placeable:hover {
+            background: rgba(0,255,204,0.15);
+            box-shadow: inset 0 0 15px rgba(0,255,204,0.4);
+        }
+
+        .grid-cell.enemy-path {
+            border-color: rgba(255,51,102,0.3);
+            background: rgba(255,51,102,0.05);
+        }
+
+        .tower {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 8px rgba(0,0,0,0.5);
+            z-index: 2;
+        }
+
+        .shooter-tower { background: #00ffcc; color: #000; }
+        .bomb-tower { background: #ff9900; color: #000; }
+        .laser-tower { background: #ff00ff; color: #000; }
+
+        .bullet { position: absolute; width: 8px; height: 8px; background: #ffff00; border-radius: 50%; z-index: 1; }
+        .bomb { position: absolute; width: 12px; height: 12px; background: #ff6600; border-radius: 50%; z-index: 1; }
+        .laser { position: absolute; width: 4px; background: #ff00ff; z-index: 1; pointer-events: none; }
+        .explosion { position: absolute; width: 70px; height: 70px; background: rgba(255,150,0,0.8); border-radius: 50%; z-index: 1; }
+
+        .alien {
+            position: absolute;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            z-index: 2;
+            box-shadow: 0 0 10px currentColor;
+        }
+        .alien-normal { width: 50px; height: 50px; background: #ff3366; color: #ff3366; }
+        .alien-shield { width: 55px; height: 55px; background: #6666ff; color: #6666ff; border: 3px solid #ccf; }
+        .alien-fast { width: 40px; height: 40px; background: #33ffcc; color: #33ffcc; }
+        .alien-big { width: 70px; height: 70px; background: #ff6600; color: #ff6600; }
+        .alien-fly { width: 45px; height: 45px; background: #ffff33; color: #ffff33; border-radius: 10px; }
+
+        .tip {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 36px;
+            font-weight: bold;
+            display: none;
+            z-index: 100;
+            text-shadow: 0 0 15px #000;
+        }
+
+        #gameOver { color: #ff3366; text-shadow: 0 0 15px #ff0033; }
+        
+        @keyframes levelClearBlink {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 1; text-shadow: 0 0 20px #00ffcc; }
+            50% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.8; text-shadow: 0 0 30px #00ffcc; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; text-shadow: 0 0 20px #00ffcc; }
+        }
+        
+        #levelClear { 
+            color: #00ffcc; 
+            animation: levelClearBlink 1s infinite alternate; 
+        }
+    </style>
+</head>
+<body>
+
+<!-- ———— 背景音乐标签（隐藏自动循环） ———— -->
+<audio id="bgMusic" loop preload="auto" volume="0.3">
+    <!-- 科幻塔防无版权背景音乐 -->
+    <source src="https://mir-sv-cdn-priam.tiktokcdn-us.com/obj/musician-lib-audio/6e92488192683424133.mp3" type="audio/mpeg">
+</audio>
+
+<!-- ———— 开始界面 ———— -->
+<div id="startScreen">
+    <h1 class="game-title-main">人类大战外星人</h1>
+    <div class="rule-box">
+        <h2 class="rule-title">📖 游戏玩法说明</h2>
+        <p class="rule-text"><strong>【操作方式】</strong> 全程使用<strong>鼠标</strong>操作：<br>
+        1. 点击左侧炮台卡片选择防御塔<br>
+        2. 点击战场左侧<strong>高亮格子</strong>放置炮台</p>
+        <p class="rule-text"><strong>【炮台介绍】</strong><br>
+        🎯 射手塔：快速单发，克制快速敌人<br>
+        💣 炸弹塔：范围AOE，克制群体敌人<br>
+        🔮 激光塔：持续伤害，克制肉盾敌人</p>
+        <p class="rule-text"><strong>【敌人种类】</strong> 普通、持盾、极速、巨型、飞天外星人，越往后越强！</p>
+        <p class="rule-text"><strong>【胜利条件】</strong> 坚守<strong>50关</strong>，击败所有外星人<br>
+        <strong>【失败条件】</strong> 外星人到达屏幕<strong>最左侧</strong></p>
+    </div>
+    <button class="start-btn" onclick="startGameFromMenu()">开始游戏</button>
+</div>
+
+<!-- ———— 游戏界面 ———— -->
+<h1 class="title">👽 人类防线VS外星人入侵 🛡️</h1>
+<div class="game-info">
+    <div>当前关卡：<span id="level">1</span></div>
+    <div>剩余外星人：<span id="remain">0</span></div>
+    <div>金币：<span id="gold">100</span></div>
+</div>
+<div class="btn-box">
+    <button class="game-btn" onclick="startGame()">开始进攻</button>
+    <button class="game-btn" onclick="resetGame()">重置游戏</button>
+    <button class="game-btn" onclick="toggleMusic()" id="musicBtn">🔊 音乐开关</button>
+</div>
+
+<div class="main-container">
+    <div class="tower-menu">
+        <div class="tower-card" onclick="selectTower(1)">射手塔<br>20金币<br>快速单发</div>
+        <div class="tower-card" onclick="selectTower(2)">炸弹塔<br>35金币<br>AOE群体</div>
+        <div class="tower-card" onclick="selectTower(3)">激光塔<br>50金币<br>持续伤害</div>
+    </div>
+
+    <div class="battle-ground" id="battleField">
+        <div class="tip" id="gameOver">游戏失败！外星人突破防线！</div>
+        <div class="tip" id="levelClear">🎉 关卡通关！准备下一关 🎉</div>
+    </div>
+</div>
+
+<script>
+    // 基础数值
+    const SHOOTER_DAMAGE = 20;
+    const BOMB_DAMAGE = 30;
+    const LASER_DAMAGE = 5;
+
+    // 背景音乐对象
+    const bgMusic = document.getElementById('bgMusic');
+    let isMusicPlaying = false;
+
+    // 5种外星人属性
+    const ALIEN_TYPES = {
+        normal: { hp: 100, speed: 0.6, shield: false, class: 'alien-normal', icon: '👽' },
+        shield: { hp: 200, speed: 0.5, shield: true, class: 'alien-shield', icon: '🛡️' },
+        fast: { hp: 50, speed: 1.1, shield: false, class: 'alien-fast', icon: '🏃' },
+        big: { hp: 400, speed: 0.3, shield: false, class: 'alien-big', icon: '🐘' },
+        fly: { hp: 80, speed: 0.7, shield: false, class: 'alien-fly', icon: '🚀' }
+    };
+
+    // 50关配置
+    const LEVEL_CONFIG = [0];
+    for (let i = 1; i <= 50; i++) {
+        if (i === 1) LEVEL_CONFIG.push(5);
+        else if (i === 2) LEVEL_CONFIG.push(7);
+        else if (i === 3) LEVEL_CONFIG.push(10);
+        else LEVEL_CONFIG.push(10 + (i - 3) * 2);
+    }
+    
+    let gameRunning = false;
+    let currentLevel = 1;
+    let aliveAliens = 0;
+    let gold = 100;
+    let selectedTower = 0;
+    
+    let towers = [];
+    let aliens = [];
+    let bullets = [];
+    let bombs = [];
+    let lasers = [];
+    let gridCells = [];
+
+    const battleField = document.getElementById('battleField');
+    const startScreen = document.getElementById('startScreen');
+
+    // ———— 音乐开关函数 ————
+    function toggleMusic() {
+        const btn = document.getElementById('musicBtn');
+        if(isMusicPlaying){
+            bgMusic.pause();
+            btn.textContent = "🔇 开启音乐";
+            isMusicPlaying = false;
+        }else{
+            bgMusic.play();
+            btn.textContent = "🔊 关闭音乐";
+            isMusicPlaying = true;
+        }
+    }
+
+    // ———— 开始界面进入游戏（自动播放音乐） ————
+    function startGameFromMenu() {
+        startScreen.style.display = 'none'; 
+        document.querySelector('.title').style.display = 'block';
+        document.querySelector('.game-info').style.display = 'flex';
+        document.querySelector('.btn-box').style.display = 'block';
+        document.querySelector('.main-container').style.display = 'flex';
+        // 自动播放背景音乐
+        bgMusic.play().catch(err => console.log("音乐自动播放被浏览器拦截，点击开关手动播放"));
+        isMusicPlaying = true;
+        document.getElementById('musicBtn').textContent = "🔊 关闭音乐";
+        resetGame(); 
+    }
+
+    // 初始化网格
+    function initGrid() {
+        battleField.innerHTML = `
+            <div class="tip" id="gameOver">游戏失败！外星人突破防线！</div>
+            <div class="tip" id="levelClear">🎉 关卡通关！准备下一关 🎉</div>
+        `;
+        gridCells = [];
+        for(let row=0; row<4; row++){
+            for(let col=0; col<6; col++){
+                const cell = document.createElement('div');
+                cell.className = 'grid-cell';
+                cell.dataset.row = row;
+                cell.dataset.col = col;
+                if(col < 4) cell.classList.add('placeable');
+                else cell.classList.add('enemy-path');
+                cell.onclick = () => placeTower(cell);
+                battleField.appendChild(cell);
+                gridCells.push(cell);
+            }
+        }
+    }
+
+    // 选择炮台
+    function selectTower(type) {
+        selectedTower = type;
+        document.querySelectorAll('.tower-card').forEach(c => c.classList.remove('active'));
+        event.target.closest('.tower-card').classList.add('active');
+    }
+
+    // 放置炮台
+    function placeTower(cell) {
+        if (!gameRunning || selectedTower === 0) return;
+        if (!cell.classList.contains('placeable') || cell.querySelector('.tower')) return;
+        
+        const cost = selectedTower === 1 ? 20 : selectedTower === 2 ? 35 : 50;
+        if (gold < cost) return;
+
+        const tower = document.createElement('div');
+        tower.className = `tower ${selectedTower===1?'shooter-tower':selectedTower===2?'bomb-tower':'laser-tower'}`;
+        tower.textContent = selectedTower===1?'射':selectedTower===2?'炸':'激';
+        cell.appendChild(tower);
+
+        const rect = cell.getBoundingClientRect();
+        const fieldRect = battleField.getBoundingClientRect();
+        towers.push({
+            element: tower, 
+            x: rect.left - fieldRect.left + rect.width/2,
+            y: rect.top - fieldRect.top + rect.height/2,
+            row: parseInt(cell.dataset.row),
+            type: selectedTower,
+            lastFire: 0, 
+            fireRate: selectedTower===1?350:selectedTower===2?1200:600
+        });
+
+        gold -= cost;
+        document.getElementById('gold').textContent = gold;
+    }
+
+    // 生成混合外星人
+    function spawnAliens() {
+        const total = LEVEL_CONFIG[currentLevel];
+        aliveAliens = total;
+        document.getElementById('remain').textContent = aliveAliens;
+
+        const typeKeys = Object.keys(ALIEN_TYPES);
+        const weightMap = {
+            normal: Math.max(50 - currentLevel, 10),
+            shield: Math.min(currentLevel * 2, 30),
+            fast: Math.min(currentLevel * 1.5, 25),
+            big: Math.min(currentLevel, 20),
+            fly: Math.min(currentLevel * 1.2, 20)
+        };
+
+        for(let i=0; i<total; i++){
+            let type = 'normal';
+            const rand = Math.random() * 100;
+            let sum = 0;
+            for(const t of typeKeys){
+                sum += weightMap[t];
+                if(rand <= sum) { type = t; break; }
+            }
+
+            const cfg = ALIEN_TYPES[type];
+            const alien = document.createElement('div');
+            alien.className = `alien ${cfg.class}`;
+            alien.textContent = cfg.icon;
+            battleField.appendChild(alien);
+            
+            const row = i % 4;
+            const cell = gridCells.find(c => c.dataset.row == row && c.dataset.col == 5);
+            const rect = cell.getBoundingClientRect();
+            const fieldRect = battleField.getBoundingClientRect();
+            
+            aliens.push({
+                element: alien,
+                x: rect.left - fieldRect.left + 20,
+                y: rect.top - fieldRect.top + 35,
+                hp: cfg.hp,
+                speed: cfg.speed,
+                shield: cfg.shield,
+                row: row
+            });
+        }
+    }
+
+    // 寻找目标
+    function findTarget(tower) {
+        if(aliens.length === 0) return null;
+        return aliens.find(a => a.row === tower.row) || aliens[0];
+    }
+
+    // 炮台攻击
+    function shooterAttack(tower) {
+        const target = findTarget(tower);
+        if(!target) return;
+        const b = document.createElement('div');
+        b.className = 'bullet';
+        battleField.appendChild(b);
+        bullets.push({element:b, x:tower.x, y:tower.y, target, speed:7});
+    }
+
+    function bombAttack(tower) {
+        const target = findTarget(tower);
+        if(!target) return;
+        const b = document.createElement('div');
+        b.className = 'bomb';
+        battleField.appendChild(b);
+        bombs.push({element:b, x:tower.x, y:tower.y, target, speed:4});
+    }
+
+    function laserAttack(tower) {
+        const target = findTarget(tower);
+        if(!target) return;
+        const l = document.createElement('div');
+        l.className = 'laser';
+        battleField.appendChild(l);
+        lasers.push({element:l, x:tower.x, y:tower.y, target, speed:10});
+    }
+
+    function towerAttack() {
+        const now = Date.now();
+        towers.forEach(t => {
+            if(now - t.lastFire < t.fireRate) return;
+            t.lastFire = now;
+            if(t.type===1) shooterAttack(t);
+            if(t.type===2) bombAttack(t);
+            if(t.type===3) laserAttack(t);
+        });
+    }
+
+    // 子弹飞行
+    function updateProjectiles() {
+        bullets.forEach((b,i)=>{
+            if(!b.target){b.element.remove(); bullets.splice(i,1); return;}
+            b.x += b.speed;
+            b.element.style.left = b.x+'px';
+            b.element.style.top = b.y+'px';
+            if(b.x > 800){b.element.remove(); bullets.splice(i,1);}
+        });
+
+        bombs.forEach((b,i)=>{
+            if(!b.target){b.element.remove(); bombs.splice(i,1); return;}
+            b.x += b.speed;
+            b.element.style.left = b.x+'px';
+            b.element.style.top = b.y+'px';
+            if(b.x >= b.target.x){
+                createExplosion(b.x, b.y);
+                b.element.remove(); bombs.splice(i,1);
+            }
+        });
+
+        lasers.forEach((l,i)=>{
+            if(!l.target){l.element.remove(); lasers.splice(i,1); return;}
+            l.x += l.speed;
+            l.element.style.left = l.x+'px';
+            l.element.style.top = l.y+'px';
+            l.element.style.height = '30px';
+            if(l.x > 800){l.element.remove(); lasers.splice(i,1);}
+        });
+    }
+
+    // 外星人移动
+    function updateAliens() {
+        aliens.forEach((a,i)=>{
+            a.x -= a.speed;
+            a.element.style.left = a.x+'px';
+            a.element.style.top = a.y+'px';
+            if(a.x < 0) gameOver();
+        });
+    }
+
+    // 碰撞伤害+盾减伤
+    function checkCollision() {
+        bullets.forEach((b,bi)=>{
+            if(!b.target) return;
+            if(Math.hypot(b.x-b.target.x, b.y-b.target.y) < 35){
+                let dmg = SHOOTER_DAMAGE;
+                if(b.target.shield) dmg *= 0.4;
+                b.target.hp -= dmg;
+                b.element.remove(); bullets.splice(bi,1);
+                if(b.target.hp <=0) killAlien(b.target);
+            }
+        });
+
+        lasers.forEach((l,li)=>{
+            if(!l.target) return;
+            if(Math.hypot(l.x-l.target.x, l.y-l.target.y) < 35){
+                let dmg = LASER_DAMAGE;
+                if(l.target.shield) dmg *= 0.4;
+                l.target.hp -= dmg;
+                if(l.target.hp <=0) killAlien(l.target);
+            }
+        });
+    }
+
+    // 炸弹爆炸
+    function createExplosion(x,y) {
+        const exp = document.createElement('div');
+        exp.className = 'explosion';
+        exp.style.left = x+'px'; exp.style.top = y+'px';
+        battleField.appendChild(exp);
+        setTimeout(()=>exp.remove(), 300);
+
+        aliens.forEach(a=>{
+            if(Math.hypot(x-a.x, y-a.y) < 70){
+                let dmg = BOMB_DAMAGE;
+                if(a.shield) dmg *= 0.4;
+                a.hp -= dmg;
+                if(a.hp <=0) killAlien(a);
+            }
+        });
+    }
+
+    // 击杀外星人
+    function killAlien(alien) {
+        const idx = aliens.indexOf(alien);
+        if(idx===-1) return;
+        alien.element.remove();
+        aliens.splice(idx,1);
+        aliveAliens--;
+        gold += 10;
+        document.getElementById('remain').textContent=aliveAliens;
+        document.getElementById('gold').textContent=gold;
+
+        if(aliveAliens===0) levelClear();
+    }
+
+    // 通关动画
+    function levelClear() {
+        gameRunning = false;
+        const clearText = document.getElementById('levelClear');
+        
+        if(currentLevel === 50) {
+            clearText.textContent = "🏆 恭喜通关全部50关！人类胜利！🏆";
+            clearText.style.display = 'block';
+            return;
+        }
+
+        clearText.style.display = 'block';
+        setTimeout(() => {
+            clearText.style.display = 'none';
+            currentLevel++;
+            document.getElementById('level').textContent = currentLevel;
+            bullets.forEach(b => b.element.remove());
+            bombs.forEach(b => b.element.remove());
+            lasers.forEach(l => l.element.remove());
+            bullets = []; bombs = []; lasers = []; aliens = [];
+        }, 1800);
+    }
+
+    // 游戏失败
+    function gameOver() {
+        gameRunning = false;
+        document.getElementById('gameOver').style.display = 'block';
+    }
+
+    // 游戏主循环
+    function gameLoop() {
+        if(!gameRunning) return;
+        towerAttack();
+        updateProjectiles();
+        updateAliens();
+        checkCollision();
+        requestAnimationFrame(gameLoop);
+    }
+
+    // 开始进攻
+    function startGame() {
+        if(gameRunning) return;
+        gameRunning = true;
+        spawnAliens();
+        gameLoop();
+    }
+
+    // 重置游戏
+    function resetGame() {
+        gameRunning = false;
+        currentLevel = 1;
+        gold = 100;
+        selectedTower = 0;
+        towers = []; aliens = []; bullets = []; bombs = []; lasers = [];
+        
+        document.getElementById('level').textContent = 1;
+        document.getElementById('gold').textContent = 100;
+        document.getElementById('remain').textContent = 0;
+        document.getElementById('gameOver').style.display = 'none';
+        document.getElementById('levelClear').style.display = 'none';
+        document.getElementById('levelClear').textContent = "🎉 关卡通关！准备下一关 🎉";
+        initGrid();
+        document.querySelectorAll('.tower-card').forEach(c=>c.classList.remove('active'));
+    }
+
+    initGrid();
+</script>
+</body>
+</html>

@@ -1,0 +1,1080 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>坦克大战</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "微软雅黑", sans-serif;
+        }
+
+        body {
+            background: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            color: white;
+        }
+
+        /* 开始菜单 */
+        #startMenu {
+            background: #2d2d2d;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+            text-align: center;
+        }
+
+        #startMenu h1 {
+            color: #00ff00;
+            margin-bottom: 30px;
+            font-size: 48px;
+        }
+
+        .mode-btn {
+            background: #00ff00;
+            color: #1a1a1a;
+            border: none;
+            padding: 15px 30px;
+            font-size: 20px;
+            margin: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .mode-btn:hover {
+            background: #00cc00;
+            transform: scale(1.05);
+        }
+
+        /* 游戏容器 */
+        #gameContainer {
+            display: none;
+            position: relative;
+        }
+
+        #gameCanvas {
+            border: 2px solid #00ff00;
+            background: #0a0a0a;
+        }
+
+        /* 游戏信息面板 */
+        #gameInfo {
+            display: flex;
+            justify-content: space-between;
+            width: 800px;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #2d2d2d;
+            border-radius: 5px;
+        }
+
+        .score-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .score-box span {
+            font-size: 18px;
+        }
+
+        .score-value {
+            font-size: 24px;
+            color: #00ff00;
+            font-weight: bold;
+        }
+
+        /* 控制说明 */
+        #controls {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #cccccc;
+        }
+
+        /* 技能冷却提示 */
+        #dashCooldown {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
+            color: #ff0000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- 开始菜单 -->
+    <div id="startMenu">
+        <h1>坦克大战</h1>
+        <button class="mode-btn" id="singlePlayerBtn">单人模式</button>
+        <button class="mode-btn" id="doublePlayerBtn">双人模式</button>
+    </div>
+
+    <!-- 游戏容器 -->
+    <div id="gameContainer">
+        <div id="gameInfo">
+            <div class="score-box">
+                <span>玩家1得分</span>
+                <span class="score-value" id="player1Score">0</span>
+            </div>
+            <div class="score-box">
+                <span>AI得分</span>
+                <span class="score-value" id="aiScore">0</span>
+            </div>
+            <div class="score-box">
+                <span>玩家2得分</span>
+                <span class="score-value" id="player2Score">0</span>
+            </div>
+        </div>
+        <div id="dashCooldown">突刺冷却中...</div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="controls">
+            单人模式：鼠标移动控制方向 | 左键射击 | 右键突刺技能 | 双人模式：玩家1(鼠标) | 玩家2(WASD+空格射击+Shift突刺)
+        </div>
+    </div>
+
+    <script>
+        // 游戏核心变量
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let gameMode = 'single'; // single/double
+        let player1Score = 0;    // 玩家1得分
+        let player2Score = 0;    // 玩家2得分
+        let aiScore = 0;         // AI得分
+        let gameLoop;
+        const dashCooldownEl = document.getElementById('dashCooldown');
+        // 画布边界常量（防止坦克超出可视区域）
+        const CANVAS_WIDTH = 800;
+        const CANVAS_HEIGHT = 600;
+        const TANK_SIZE = 30; // 坦克尺寸
+
+        // 工具函数：检测矩形碰撞
+        function checkRectCollision(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                   rect1.x + rect1.width > rect2.x &&
+                   rect1.y < rect2.y + rect2.height &&
+                   rect1.y + rect1.height > rect2.y;
+        }
+
+        // 工具函数：限制坐标在画布内（核心修复：防止坦克超出可视区域）
+        function clampPosition(x, y) {
+            // 确保坦克不会超出画布边界，保留至少5px的边距
+            const clampedX = Math.max(5, Math.min(CANVAS_WIDTH - TANK_SIZE - 5, x));
+            const clampedY = Math.max(5, Math.min(CANVAS_HEIGHT - TANK_SIZE - 5, y));
+            return {x: clampedX, y: clampedY};
+        }
+
+        // 坦克类
+        class Tank {
+            constructor(x, y, color, controlType) {
+                // 初始化时强制限制位置在画布内
+                const pos = clampPosition(x, y);
+                this.x = pos.x;
+                this.y = pos.y;
+                this.width = TANK_SIZE;
+                this.height = TANK_SIZE;
+                this.color = color;
+                this.baseSpeed = 3; // 基础速度
+                this.speed = this.baseSpeed;
+                this.direction = 'up';
+                this.controlType = controlType; // player1/player2/enemy
+                this.bullets = [];
+                this.shootCooldown = 0;
+                this.maxShootCooldown = 15; // 射击冷却（帧数）
+                
+                // 突刺技能相关
+                this.dashCooldown = 0;
+                this.maxDashCooldown = 120; // 突刺冷却（2秒）
+                this.dashSpeed = 15; // 突刺速度
+                this.dashDuration = 5; // 突刺持续帧数
+                this.isDashing = false;
+                this.dashTimer = 0;
+
+                this.powerUp = null; // 道具效果：tripleShot(三发子弹)
+                this.powerUpTime = 0;
+            }
+
+            // 绘制坦克（核心修复：强制绘制，无隐藏条件）
+            draw() {
+                // 绘制坦克主体（放大视觉辨识度，防止"看不见"）
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                // 绘制坦克边框（增强可视性）
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
+                
+                // 绘制炮管
+                ctx.strokeStyle = '#ffff00';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                const cannonX = this.x + this.width/2;
+                const cannonY = this.y + this.height/2;
+                switch(this.direction) {
+                    case 'up':
+                        ctx.moveTo(cannonX, cannonY);
+                        ctx.lineTo(cannonX, this.y - 10);
+                        break;
+                    case 'down':
+                        ctx.moveTo(cannonX, cannonY);
+                        ctx.lineTo(cannonX, this.y + this.height + 10);
+                        break;
+                    case 'left':
+                        ctx.moveTo(cannonX, cannonY);
+                        ctx.lineTo(this.x - 10, cannonY);
+                        break;
+                    case 'right':
+                        ctx.moveTo(cannonX, cannonY);
+                        ctx.lineTo(this.x + this.width + 10, cannonY);
+                        break;
+                }
+                ctx.stroke();
+
+                // 道具效果显示
+                if (this.powerUp) {
+                    ctx.fillStyle = 'yellow';
+                    ctx.font = '10px Arial';
+                    ctx.fillText('3发', this.x, this.y - 5);
+                }
+
+                // 突刺状态高亮
+                if (this.isDashing) {
+                    ctx.strokeStyle = '#ff0000';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(this.x - 2, this.y - 2, this.width + 4, this.height + 4);
+                }
+            }
+
+            // 更新坦克状态
+            update(keys, mouse, map) {
+                // 突刺逻辑处理
+                this.handleDash();
+                
+                // 控制逻辑
+                this.handleControls(keys, mouse);
+                
+                // 移动与碰撞检测
+                this.move(map);
+                
+                // 射击冷却
+                if (this.shootCooldown > 0) this.shootCooldown--;
+                
+                // 突刺冷却
+                if (this.dashCooldown > 0) {
+                    this.dashCooldown--;
+                    if (this.controlType === 'player1') {
+                        dashCooldownEl.style.display = 'block';
+                    }
+                } else {
+                    if (this.controlType === 'player1') {
+                        dashCooldownEl.style.display = 'none';
+                    }
+                }
+                
+                // 道具效果计时
+                if (this.powerUp) {
+                    this.powerUpTime--;
+                    if (this.powerUpTime <= 0) this.powerUp = null;
+                }
+                
+                // 更新子弹
+                this.updateBullets(map);
+            }
+
+            // 突刺技能处理
+            handleDash() {
+                if (this.isDashing) {
+                    this.dashTimer--;
+                    this.speed = this.dashSpeed;
+                    if (this.dashTimer <= 0) {
+                        this.isDashing = false;
+                        this.speed = this.baseSpeed;
+                    }
+                } else {
+                    this.speed = this.baseSpeed;
+                }
+            }
+
+            // 释放突刺技能
+            dash() {
+                if (this.dashCooldown === 0 && !this.isDashing) {
+                    this.isDashing = true;
+                    this.dashTimer = this.dashDuration;
+                    this.dashCooldown = this.maxDashCooldown;
+                }
+            }
+
+            // 控制处理
+            handleControls(keys, mouse) {
+                // 玩家1控制 (鼠标) - 单/双人模式通用
+                if (this.controlType === 'player1') {
+                    if (mouse.x && mouse.y) {
+                        // 鼠标位置计算坦克方向
+                        const dx = mouse.x - (this.x + this.width/2);
+                        const dy = mouse.y - (this.y + this.height/2);
+                        if (Math.abs(dx) > Math.abs(dy)) {
+                            this.direction = dx > 0 ? 'right' : 'left';
+                        } else {
+                            this.direction = dy > 0 ? 'down' : 'up';
+                        }
+                    }
+                    
+                    // 鼠标左键射击
+                    if (mouse.leftClick && this.shootCooldown === 0) {
+                        this.shoot();
+                        this.shootCooldown = this.maxShootCooldown;
+                        mouse.leftClick = false; // 重置点击状态
+                    }
+                    
+                    // 鼠标右键突刺
+                    if (mouse.rightClick) {
+                        this.dash();
+                        mouse.rightClick = false; // 重置右键状态
+                    }
+                }
+
+                // 玩家2控制 (WASD) - 仅双人模式
+                if (this.controlType === 'player2') {
+                    if (keys.w) this.direction = 'up';
+                    if (keys.s) this.direction = 'down';
+                    if (keys.a) this.direction = 'left';
+                    if (keys.d) this.direction = 'right';
+                    
+                    // 空格射击
+                    if (keys.space && this.shootCooldown === 0) {
+                        this.shoot();
+                        this.shootCooldown = this.maxShootCooldown;
+                    }
+                    
+                    // Shift突刺
+                    if (keys.shift) {
+                        this.dash();
+                        keys.shift = false;
+                    }
+                }
+
+                // AI控制（低强度）
+                if (this.controlType === 'enemy') {
+                    this.aiMove();
+                    
+                    // AI射击（低频率：0.5%概率/帧）
+                    if (Math.random() < 0.005 && this.shootCooldown === 0) {
+                        this.shoot();
+                        this.shootCooldown = this.maxShootCooldown;
+                    }
+                    
+                    // AI突刺（极低频率：0.1%概率/帧）
+                    if (Math.random() < 0.001 && this.dashCooldown === 0) {
+                        this.dash();
+                    }
+                }
+            }
+
+            // AI移动逻辑（固定低强度）
+            aiMove() {
+                const directions = ['up', 'down', 'left', 'right'];
+                // 低频率移动：1%概率/帧
+                if (Math.random() < 0.01) {
+                    this.direction = directions[Math.floor(Math.random() * directions.length)];
+                }
+            }
+
+            // 移动处理（防卡墙+防出界）
+            move(map) {
+                // 1. 先计算X/Y轴的移动增量
+                let dx = 0;
+                let dy = 0;
+
+                switch(this.direction) {
+                    case 'up': dy = -this.speed; break;
+                    case 'down': dy = this.speed; break;
+                    case 'left': dx = -this.speed; break;
+                    case 'right': dx = this.speed; break;
+                }
+
+                // 2. 拆分轴向检测：先检测X轴移动
+                let newX = this.x + dx;
+                let newY = this.y;
+
+                // X轴边界检测（提前限制）
+                newX = Math.max(5, Math.min(CANVAS_WIDTH - TANK_SIZE - 5, newX));
+
+                // X轴碰撞检测
+                let canMoveX = true;
+                const tankXRect = {x: newX, y: this.y, width: this.width, height: this.height};
+                map.obstacles.forEach(obs => {
+                    if (checkRectCollision(tankXRect, obs)) {
+                        canMoveX = false;
+                    }
+                });
+
+                // 3. 再检测Y轴移动
+                newY = this.y + dy;
+
+                // Y轴边界检测（提前限制）
+                newY = Math.max(5, Math.min(CANVAS_HEIGHT - TANK_SIZE - 5, newY));
+
+                // Y轴碰撞检测
+                let canMoveY = true;
+                const tankYRect = {x: this.x, y: newY, width: this.width, height: this.height};
+                map.obstacles.forEach(obs => {
+                    if (checkRectCollision(tankYRect, obs)) {
+                        canMoveY = false;
+                    }
+                });
+
+                // 4. 应用移动（只移动无碰撞的轴）
+                if (canMoveX) this.x = newX;
+                if (canMoveY) this.y = newY;
+
+                // 5. 最终安全检测：强制限制位置在画布内
+                const clampedPos = clampPosition(this.x, this.y);
+                this.x = clampedPos.x;
+                this.y = clampedPos.y;
+
+                // 6. 突刺时卡墙处理
+                if (this.isDashing && (!canMoveX && !canMoveY)) {
+                    this.isDashing = false;
+                    this.dashTimer = 0;
+                    this.speed = this.baseSpeed;
+                }
+            }
+
+            // 射击逻辑
+            shoot() {
+                // 三发子弹道具效果
+                if (this.powerUp === 'tripleShot') {
+                    const cannonX = this.x + this.width/2;
+                    const cannonY = this.y + this.height/2;
+                    // 主方向子弹
+                    this.bullets.push(new Bullet(cannonX, cannonY, this.direction, this.color));
+                    // 左右偏移子弹
+                    if (this.direction === 'up' || this.direction === 'down') {
+                        this.bullets.push(new Bullet(this.x + this.width/4, cannonY, this.direction, this.color));
+                        this.bullets.push(new Bullet(this.x + 3*this.width/4, cannonY, this.direction, this.color));
+                    } else {
+                        this.bullets.push(new Bullet(cannonX, this.y + this.height/4, this.direction, this.color));
+                        this.bullets.push(new Bullet(cannonX, this.y + 3*this.height/4, this.direction, this.color));
+                    }
+                } else {
+                    // 普通射击
+                    const cannonX = this.x + this.width/2;
+                    const cannonY = this.y + this.height/2;
+                    this.bullets.push(new Bullet(cannonX, cannonY, this.direction, this.color));
+                }
+            }
+
+            // 更新子弹
+            updateBullets(map) {
+                // 更新子弹位置并检测碰撞
+                this.bullets = this.bullets.filter(bullet => {
+                    bullet.update();
+                    
+                    // 边界检测
+                    if (bullet.x < 0 || bullet.x > CANVAS_WIDTH || bullet.y < 0 || bullet.y > CANVAS_HEIGHT) {
+                        return false;
+                    }
+
+                    // 地图碰撞
+                    let hitObstacle = false;
+                    map.obstacles.forEach(obs => {
+                        if (
+                            bullet.x < obs.x + obs.width &&
+                            bullet.x + bullet.size > obs.x &&
+                            bullet.y < obs.y + obs.height &&
+                            bullet.y + bullet.size > obs.y
+                        ) {
+                            hitObstacle = true;
+                        }
+                    });
+                    
+                    return !hitObstacle;
+                });
+            }
+
+            // 拾取道具
+            pickPowerUp(powerUp) {
+                this.powerUp = powerUp.type;
+                this.powerUpTime = 300; // 道具持续时间（帧数）
+            }
+
+            // 重置位置（核心修复：确保重置后仍在可视区域）
+            resetPosition() {
+                let newX, newY;
+                // 根据坦克类型分配不同的重置区域，避免重叠
+                if (this.controlType === 'player1') {
+                    newX = 100 + Math.random() * 100;
+                    newY = CANVAS_HEIGHT/2 + Math.random() * 100;
+                } else if (this.controlType === 'player2') {
+                    newX = CANVAS_WIDTH - 200 + Math.random() * 100;
+                    newY = CANVAS_HEIGHT/2 + Math.random() * 100;
+                } else { // AI
+                    newX = CANVAS_WIDTH/2 + (Math.random() - 0.5) * 200;
+                    newY = CANVAS_HEIGHT/2 + (Math.random() - 0.5) * 200;
+                }
+                // 强制限制位置在画布内
+                const clampedPos = clampPosition(newX, newY);
+                this.x = clampedPos.x;
+                this.y = clampedPos.y;
+            }
+        }
+
+        // 子弹类
+        class Bullet {
+            constructor(x, y, direction, color) {
+                this.x = x;
+                this.y = y;
+                this.size = 5;
+                this.speed = 8;
+                this.direction = direction;
+                this.color = color;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x - this.size/2, this.y - this.size/2, this.size, this.size);
+            }
+
+            update() {
+                switch(this.direction) {
+                    case 'up': this.y -= this.speed; break;
+                    case 'down': this.y += this.speed; break;
+                    case 'left': this.x -= this.speed; break;
+                    case 'right': this.x += this.speed; break;
+                }
+            }
+        }
+
+        // 道具类
+        class PowerUp {
+            constructor(x, y, type) {
+                const pos = clampPosition(x, y);
+                this.x = pos.x;
+                this.y = pos.y;
+                this.size = 20;
+                this.type = type; // tripleShot
+                this.color = type === 'tripleShot' ? 'orange' : 'purple';
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size/2, 0, Math.PI*2);
+                ctx.fill();
+                
+                // 道具图标
+                ctx.fillStyle = 'white';
+                ctx.font = '10px Arial';
+                ctx.fillText('3', this.x - 3, this.y + 3);
+            }
+        }
+
+        // 地图类（复杂地图）
+        class Map {
+            constructor() {
+                this.obstacles = [];
+                this.powerUps = [];
+                this.generateComplexMap();
+            }
+
+            // 生成复杂地图
+            generateComplexMap() {
+                this.obstacles = [];
+                this.powerUps = [];
+                
+                // 基础墙壁
+                this.obstacles.push(
+                    {x: 0, y: 0, width: CANVAS_WIDTH, height: 10}, // 上
+                    {x: 0, y: CANVAS_HEIGHT-10, width: CANVAS_WIDTH, height: 10}, // 下
+                    {x: 0, y: 0, width: 10, height: CANVAS_HEIGHT}, // 左
+                    {x: CANVAS_WIDTH-10, y: 0, width: 10, height: CANVAS_HEIGHT} // 右
+                );
+
+                // 复杂障碍物布局（20种随机复杂模板）
+                const complexTemplates = [
+                    () => this.generateDenseGrid(8, 8),
+                    () => this.generateLabyrinth(),
+                    () => this.generateFortress(),
+                    () => this.generateRandomBlocks(25),
+                    () => this.generateCrossWithWalls(),
+                    () => this.generateDenseGrid(7, 9),
+                    () => this.generateLabyrinth(2),
+                    () => this.generateFortress(2),
+                    () => this.generateRandomBlocks(30),
+                    () => this.generateCrossWithWalls(2),
+                    () => this.generateDenseGrid(9, 7),
+                    () => this.generateLabyrinth(3),
+                    () => this.generateFortress(3),
+                    () => this.generateRandomBlocks(20),
+                    () => this.generateCrossWithWalls(3),
+                    () => this.generateDenseGrid(6, 10),
+                    () => this.generateLabyrinth(4),
+                    () => this.generateFortress(4),
+                    () => this.generateRandomBlocks(28),
+                    () => this.generateCrossWithWalls(4)
+                ];
+
+                // 随机选择一个复杂地图模板
+                const randomTemplate = complexTemplates[Math.floor(Math.random() * complexTemplates.length)];
+                randomTemplate();
+
+                // 生成少量道具
+                this.generatePowerUps(1);
+            }
+
+            // 密集网格地图
+            generateDenseGrid(cols, rows) {
+                const colWidth = CANVAS_WIDTH / cols;
+                const rowHeight = CANVAS_HEIGHT / rows;
+                
+                for (let i = 0; i < cols; i++) {
+                    for (let j = 0; j < rows; j++) {
+                        if ((i + j) % 3 !== 0) {
+                            this.obstacles.push({
+                                x: i * colWidth + 5,
+                                y: j * rowHeight + 5,
+                                width: 25,
+                                height: 25
+                            });
+                        }
+                    }
+                }
+            }
+
+            // 迷宫式布局
+            generateLabyrinth(version = 1) {
+                const mainPathWidth = 40;
+                if (version === 1) {
+                    this.obstacles.push(
+                        {x: CANVAS_WIDTH/2 - mainPathWidth/2, y: 0, width: mainPathWidth, height: CANVAS_HEIGHT},
+                        {x: 0, y: CANVAS_HEIGHT/2 - mainPathWidth/2, width: CANVAS_WIDTH, height: mainPathWidth}
+                    );
+                    for (let i = 0; i < 8; i++) {
+                        const x = Math.random() * (CANVAS_WIDTH - 100) + 50;
+                        const y = Math.random() * (CANVAS_HEIGHT - 100) + 50;
+                        this.obstacles.push({x, y, width: 30, height: 30});
+                    }
+                } else {
+                    for (let i = 0; i < 15; i++) {
+                        const isHorizontal = Math.random() > 0.5;
+                        const x = Math.random() * (CANVAS_WIDTH - 200) + 100;
+                        const y = Math.random() * (CANVAS_HEIGHT - 200) + 100;
+                        this.obstacles.push({
+                            x, y,
+                            width: isHorizontal ? 100 : 20,
+                            height: isHorizontal ? 20 : 100
+                        });
+                    }
+                }
+            }
+
+            // 堡垒式布局
+            generateFortress(version = 1) {
+                const centerX = CANVAS_WIDTH/2;
+                const centerY = CANVAS_HEIGHT/2;
+                this.obstacles.push(
+                    {x: centerX - 80, y: centerY - 80, width: 160, height: 20},
+                    {x: centerX - 80, y: centerY + 60, width: 160, height: 20},
+                    {x: centerX - 80, y: centerY - 60, width: 20, height: 120},
+                    {x: centerX + 60, y: centerY - 60, width: 20, height: 120}
+                );
+                if (version > 1) {
+                    this.obstacles.push(
+                        {x: 100, y: 100, width: 600, height: 20},
+                        {x: 100, y: 500, width: 600, height: 20},
+                        {x: 100, y: 100, width: 20, height: 400},
+                        {x: 700, y: 100, width: 20, height: 400}
+                    );
+                }
+                for (let i = 0; i < version * 3; i++) {
+                    this.obstacles.push({
+                        x: centerX - 60 + Math.random() * 120,
+                        y: centerY - 60 + Math.random() * 120,
+                        width: 15 + Math.random() * 20,
+                        height: 15 + Math.random() * 20
+                    });
+                }
+            }
+
+            // 大量随机障碍物
+            generateRandomBlocks(count) {
+                for (let i = 0; i < count; i++) {
+                    const x = Math.random() * (CANVAS_WIDTH - 80) + 40;
+                    const y = Math.random() * (CANVAS_HEIGHT - 80) + 40;
+                    const width = Math.random() * 30 + 20;
+                    const height = Math.random() * 30 + 20;
+                    this.obstacles.push({x, y, width, height});
+                }
+            }
+
+            // 十字+围墙布局
+            generateCrossWithWalls(version = 1) {
+                this.obstacles.push(
+                    {x: CANVAS_WIDTH/2 - 20, y: 50, width: 40, height: CANVAS_HEIGHT - 100},
+                    {x: 50, y: CANVAS_HEIGHT/2 - 20, width: CANVAS_WIDTH - 100, height: 40}
+                );
+                if (version > 1) {
+                    for (let i = 0; i < 4; i++) {
+                        const angle = (i * Math.PI/2);
+                        const x = CANVAS_WIDTH/2 + Math.cos(angle) * 200;
+                        const y = CANVAS_HEIGHT/2 + Math.sin(angle) * 200;
+                        this.obstacles.push({
+                            x: x - 40, y: y - 40, width: 80, height: 80
+                        });
+                    }
+                }
+            }
+
+            // 生成道具
+            generatePowerUps(count) {
+                for (let i = 0; i < count; i++) {
+                    const x = Math.random() * (CANVAS_WIDTH - 100) + 50;
+                    const y = Math.random() * (CANVAS_HEIGHT - 100) + 50;
+                    this.powerUps.push(new PowerUp(x, y, 'tripleShot'));
+                }
+            }
+
+            // 绘制地图
+            draw() {
+                // 绘制障碍物
+                ctx.fillStyle = '#444444';
+                this.obstacles.forEach(obs => {
+                    ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                });
+
+                // 绘制道具
+                this.powerUps.forEach(powerUp => {
+                    powerUp.draw();
+                });
+            }
+        }
+
+        // 游戏初始化
+        function initGame(mode) {
+            // 重置游戏状态
+            gameMode = mode;
+            player1Score = 0;
+            player2Score = 0;
+            aiScore = 0;
+            updateGameInfo();
+
+            // 强制创建玩家1（必存在）
+            window.player1 = new Tank(100, CANVAS_HEIGHT/2, '#00ff00', 'player1');
+            // 创建玩家2（双人模式）
+            window.player2 = gameMode === 'double' ? new Tank(CANVAS_WIDTH - 150, CANVAS_HEIGHT/2, '#0099ff', 'player2') : null;
+            // 创建AI
+            window.enemyTanks = [new Tank(CANVAS_WIDTH/2, CANVAS_HEIGHT/2, '#ff0000', 'enemy')];
+            
+            // 生成地图
+            window.gameMap = new Map();
+
+            // 控制变量
+            window.keys = {w: false, s: false, a: false, d: false, space: false, shift: false};
+            window.mouse = {
+                x: 0, y: 0, 
+                leftClick: false,
+                rightClick: false
+            };
+
+            // 开始游戏循环
+            startGameLoop();
+        }
+
+        // 游戏主循环（核心修复：强制绘制所有坦克）
+        function gameUpdate() {
+            // 清空画布
+            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            // 绘制地图
+            gameMap.draw();
+
+            // 强制绘制玩家1（必绘）
+            player1.update(keys, mouse, gameMap);
+            player1.draw();
+
+            // 绘制玩家2（双人模式）
+            if (gameMode === 'double' && player2) {
+                player2.update(keys, mouse, gameMap);
+                player2.draw();
+            }
+
+            // 强制绘制AI
+            enemyTanks.forEach(enemy => {
+                enemy.update(keys, mouse, gameMap);
+                enemy.draw();
+            });
+
+            // 绘制所有子弹
+            drawAllBullets();
+
+            // 碰撞检测
+            checkCollisions();
+
+            // 道具拾取检测
+            checkPowerUpPickup();
+        }
+
+        // 绘制所有子弹
+        function drawAllBullets() {
+            // 玩家1子弹
+            player1.bullets.forEach(bullet => {
+                bullet.draw();
+            });
+
+            // 玩家2子弹
+            if (gameMode === 'double' && player2) {
+                player2.bullets.forEach(bullet => {
+                    bullet.draw();
+                });
+            }
+
+            // AI子弹
+            enemyTanks.forEach(enemy => {
+                enemy.bullets.forEach(bullet => {
+                    bullet.draw();
+                });
+            });
+        }
+
+        // 碰撞检测（使用resetPosition方法，确保重置后仍可视）
+        function checkCollisions() {
+            // 玩家1子弹击中AI
+            player1.bullets.forEach((bullet, idx) => {
+                enemyTanks.forEach(enemy => {
+                    if (checkRectCollision(
+                        {x: bullet.x - bullet.size/2, y: bullet.y - bullet.size/2, width: bullet.size, height: bullet.size},
+                        {x: enemy.x, y: enemy.y, width: enemy.width, height: enemy.height}
+                    )) {
+                        player1.bullets.splice(idx, 1);
+                        player1Score++;
+                        enemy.resetPosition(); // 使用封装的重置方法
+                        updateGameInfo();
+                    }
+                });
+            });
+
+            // 玩家2子弹击中AI
+            if (gameMode === 'double' && player2) {
+                player2.bullets.forEach((bullet, idx) => {
+                    enemyTanks.forEach(enemy => {
+                        if (checkRectCollision(
+                            {x: bullet.x - bullet.size/2, y: bullet.y - bullet.size/2, width: bullet.size, height: bullet.size},
+                            {x: enemy.x, y: enemy.y, width: enemy.width, height: enemy.height}
+                        )) {
+                            player2.bullets.splice(idx, 1);
+                            player2Score++;
+                            enemy.resetPosition();
+                            updateGameInfo();
+                        }
+                    });
+                });
+            }
+
+            // AI子弹击中玩家1
+            enemyTanks.forEach(enemy => {
+                enemy.bullets.forEach((bullet, idx) => {
+                    if (checkRectCollision(
+                        {x: bullet.x - bullet.size/2, y: bullet.y - bullet.size/2, width: bullet.size, height: bullet.size},
+                        {x: player1.x, y: player1.y, width: player1.width, height: player1.height}
+                    )) {
+                        enemy.bullets.splice(idx, 1);
+                        aiScore++;
+                        player1.resetPosition(); // 使用封装的重置方法
+                        updateGameInfo();
+                    }
+                });
+            });
+
+            // AI子弹击中玩家2
+            if (gameMode === 'double' && player2) {
+                enemyTanks.forEach(enemy => {
+                    enemy.bullets.forEach((bullet, idx) => {
+                        if (checkRectCollision(
+                            {x: bullet.x - bullet.size/2, y: bullet.y - bullet.size/2, width: bullet.size, height: bullet.size},
+                            {x: player2.x, y: player2.y, width: player2.width, height: player2.height}
+                        )) {
+                            enemy.bullets.splice(idx, 1);
+                            aiScore++;
+                            player2.resetPosition();
+                            updateGameInfo();
+                        }
+                    });
+                });
+            }
+
+            // 突刺碰撞 - 玩家1突刺击中AI
+            if (player1.isDashing) {
+                enemyTanks.forEach(enemy => {
+                    if (checkRectCollision(
+                        {x: player1.x, y: player1.y, width: player1.width, height: player1.height},
+                        {x: enemy.x, y: enemy.y, width: enemy.width, height: enemy.height}
+                    )) {
+                        player1Score++;
+                        enemy.resetPosition();
+                        updateGameInfo();
+                    }
+                });
+            }
+
+            // 突刺碰撞 - 玩家2突刺击中AI
+            if (gameMode === 'double' && player2 && player2.isDashing) {
+                enemyTanks.forEach(enemy => {
+                    if (checkRectCollision(
+                        {x: player2.x, y: player2.y, width: player2.width, height: player2.height},
+                        {x: enemy.x, y: enemy.y, width: enemy.width, height: enemy.height}
+                    )) {
+                        player2Score++;
+                        enemy.resetPosition();
+                        updateGameInfo();
+                    }
+                });
+            }
+
+            // 突刺碰撞 - AI突刺击中玩家1
+            enemyTanks.forEach(enemy => {
+                if (enemy.isDashing) {
+                    if (checkRectCollision(
+                        {x: enemy.x, y: enemy.y, width: enemy.width, height: enemy.height},
+                        {x: player1.x, y: player1.y, width: player1.width, height: player1.height}
+                    )) {
+                        aiScore++;
+                        player1.resetPosition();
+                        updateGameInfo();
+                    }
+                }
+            });
+
+            // 突刺碰撞 - AI突刺击中玩家2
+            if (gameMode === 'double' && player2) {
+                enemyTanks.forEach(enemy => {
+                    if (enemy.isDashing) {
+                        if (checkRectCollision(
+                            {x: enemy.x, y: enemy.y, width: enemy.width, height: enemy.height},
+                            {x: player2.x, y: player2.y, width: player2.width, height: player2.height}
+                        )) {
+                            aiScore++;
+                            player2.resetPosition();
+                            updateGameInfo();
+                        }
+                    }
+                });
+            }
+        }
+
+        // 道具拾取检测
+        function checkPowerUpPickup() {
+            // 玩家1拾取
+            gameMap.powerUps.forEach((powerUp, idx) => {
+                if (checkRectCollision(
+                    {x: player1.x, y: player1.y, width: player1.width, height: player1.height},
+                    {x: powerUp.x - powerUp.size/2, y: powerUp.y - powerUp.size/2, width: powerUp.size, height: powerUp.size}
+                )) {
+                    player1.pickPowerUp(powerUp);
+                    gameMap.powerUps.splice(idx, 1);
+                }
+            });
+
+            // 玩家2拾取
+            if (gameMode === 'double' && player2) {
+                gameMap.powerUps.forEach((powerUp, idx) => {
+                    if (checkRectCollision(
+                        {x: player2.x, y: player2.y, width: player2.width, height: player2.height},
+                        {x: powerUp.x - powerUp.size/2, y: powerUp.y - powerUp.size/2, width: powerUp.size, height: powerUp.size}
+                    )) {
+                        player2.pickPowerUp(powerUp);
+                        gameMap.powerUps.splice(idx, 1);
+                    }
+                });
+            }
+        }
+
+        // 更新游戏信息显示
+        function updateGameInfo() {
+            document.getElementById('player1Score').textContent = player1Score;
+            document.getElementById('aiScore').textContent = aiScore;
+            document.getElementById('player2Score').textContent = player2Score;
+        }
+
+        // 开始游戏循环
+        function startGameLoop() {
+            if (gameLoop) clearInterval(gameLoop);
+            gameLoop = setInterval(gameUpdate, 16); // 约60帧/秒
+        }
+
+        // 事件监听
+        document.addEventListener('keydown', (e) => {
+            switch(e.key.toLowerCase()) {
+                case 'w': keys.w = true; break;
+                case 's': keys.s = true; break;
+                case 'a': keys.a = true; break;
+                case 'd': keys.d = true; break;
+                case ' ': keys.space = true; break;
+                case 'shift': keys.shift = true; break;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            switch(e.key.toLowerCase()) {
+                case 'w': keys.w = false; break;
+                case 's': keys.s = false; break;
+                case 'a': keys.a = false; break;
+                case 'd': keys.d = false; break;
+                case ' ': keys.space = false; break;
+                case 'shift': keys.shift = false; break;
+            }
+        });
+
+        // 鼠标控制
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 0) {
+                mouse.leftClick = true;
+            } else if (e.button === 2) {
+                mouse.rightClick = true;
+            }
+            e.preventDefault();
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (e.button === 0) {
+                mouse.leftClick = false;
+            } else if (e.button === 2) {
+                mouse.rightClick = false;
+            }
+        });
+
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
+        // 开始菜单按钮
+        document.getElementById('singlePlayerBtn').addEventListener('click', () => {
+            document.getElementById('startMenu').style.display = 'none';
+            document.getElementById('gameContainer').style.display = 'block';
+            initGame('single');
+        });
+
+        document.getElementById('doublePlayerBtn').addEventListener('click', () => {
+            document.getElementById('startMenu').style.display = 'none';
+            document.getElementById('gameContainer').style.display = 'block';
+            initGame('double');
+        });
+    </script>
+</body>
+</html>

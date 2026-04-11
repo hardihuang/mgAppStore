@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人类大战外星人 - 特效音效完整版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0c1421 0%, #1a2330 50%, #2d1b60 100%);
+            background-attachment: fixed;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            min-height: 100vh;
+            overflow: auto;
+        }
+
+        /* 🔥 升级特效核心样式 */
+        /* 全屏升级闪光 */
+        #upgradeFlash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 255, 204, 0.3);
+            z-index: 9999;
+            display: none;
+            animation: flash 0.3s ease-out forwards;
+        }
+        /* 塔升级扩散光环 */
+        .upgrade-aura {
+            position: absolute;
+            border-radius: 50%;
+            border: 3px solid #00ffcc;
+            z-index: 3;
+            animation: auraExpand 0.8s ease-out forwards;
+            pointer-events: none;
+        }
+        /* 升级文字飘字 */
+        .upgrade-text {
+            position: absolute;
+            color: #ffd700;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 0 0 8px #ffd700;
+            z-index: 4;
+            animation: textFloat 1s ease-out forwards;
+            pointer-events: none;
+        }
+        /* 满级彩虹粒子特效 */
+        .max-level-particles {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            z-index: 3;
+            pointer-events: none;
+            animation: maxParticles 1.5s infinite linear;
+        }
+
+        /* 拖拽铲子 */
+        #shovel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 40px;
+            height: 40px;
+            font-size: 32px;
+            cursor: grab;
+            z-index: 999;
+            display: none;
+            user-select: none;
+            filter: drop-shadow(0 0 5px #fff);
+        }
+        #shovel:active { cursor: grabbing; }
+
+        /* 升级面板 */
+        #upgradePanel {
+            position: absolute;
+            background: rgba(26,35,48,0.95);
+            border: 2px solid #00ffcc;
+            border-radius: 8px;
+            padding: 10px 15px;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 0 15px rgba(0,255,204,0.5);
+        }
+        .upgrade-btn {
+            padding: 6px 12px;
+            background: linear-gradient(45deg, #00ffcc, #00e6b8);
+            border: none;
+            border-radius: 5px;
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 8px;
+            font-size: 14px;
+        }
+        .upgrade-btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .level-text {
+            font-size: 14px;
+            margin-bottom: 5px;
+            color: #00ffcc;
+            font-weight: bold;
+        }
+
+        /* 开始界面 */
+        #startScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(135deg, #080e1a 0%, #112035 50%, #1f0a46 10%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            padding: 20px;
+        }
+        .game-title-main {
+            font-size: 52px;
+            color: #00ffcc;
+            text-shadow: 0 0 20px #00ffcc, 0 0 40px #00997a;
+            margin-bottom: 20px;
+            letter-spacing: 3px;
+            text-align: center;
+        }
+        .rule-box {
+            background: rgba(0,0,0,0.5);
+            border: 2px solid #00ffcc;
+            border-radius: 12px;
+            padding: 20px 30px;
+            max-width: 900px;
+            box-shadow: 0 0 20px rgba(0,255,204,0.3);
+            margin-bottom: 20px;
+        }
+        .rule-title {
+            font-size: 24px;
+            color: #00ffcc;
+            text-align: center;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px #00ffcc;
+        }
+        .rule-text {
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 8px;
+        }
+        .rule-text strong {
+            color: #00ffcc;
+        }
+        .start-btn {
+            padding: 14px 40px;
+            font-size: 22px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00ffcc, #00e6b8);
+            border: none;
+            border-radius: 8px;
+            color: #000;
+            cursor: pointer;
+            transition: 0.3s;
+            box-shadow: 0 0 15px #00ffcc;
+        }
+        .start-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 25px #00ffcc;
+        }
+
+        /* 游戏界面 */
+        .title {
+            font-size: 28px;
+            color: #00ffcc;
+            margin-bottom: 10px;
+            text-shadow: 0 0 15px #00ffcc;
+            letter-spacing: 2px;
+            display: none;
+        }
+        .game-info {
+            display: flex;
+            gap: 30px;
+            font-size: 17px;
+            margin-bottom: 10px;
+            padding: 8px 15px;
+            background: rgba(0,0,0,0.4);
+            border-radius: 10px;
+            border: 1px solid #00ffcc;
+            display: none;
+        }
+        .btn-box {
+            margin-bottom: 10px;
+            display: none;
+        }
+        .game-btn {
+            padding: 8px 20px;
+            margin: 0 5px;
+            background: linear-gradient(45deg, #00ffcc, #00e6b8);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 15px;
+            color: #000;
+            transition: 0.2s;
+        }
+        .game-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 10px #00ffcc;
+        }
+        .main-container {
+            display: flex;
+            gap: 15px;
+            position: relative;
+            align-items: flex-start;
+            display: none;
+        }
+
+        /* 塔防菜单 */
+        .tower-menu {
+            width: 290px;
+            background: rgba(26,35,48,0.9);
+            border: 2px solid #00ffcc;
+            border-radius: 10px;
+            padding: 10px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            box-shadow: 0 0 15px rgba(0,255,204,0.3);
+        }
+        .tower-card {
+            height: 70px;
+            background: rgba(37,48,64,0.9);
+            border: 2px solid #fff;
+            border-radius: 6px;
+            text-align: center;
+            padding: 5px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+            color: #fff;
+        }
+        .tower-card.active {
+            border-color: #00ffcc;
+            background: rgba(0,255,204,0.2);
+            box-shadow: 0 0 8px #00ffcc;
+        }
+
+        /* 5行9列 战场 */
+        .battle-ground {
+            width: 1197px;
+            height: 600px;
+            background: rgba(21,28,40,0.8);
+            border: 3px solid #00ffcc;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,255,204,0.4);
+            display: grid;
+            grid-template-columns: repeat(9, 133px);
+            grid-template-rows: repeat(5, 120px);
+        }
+        .grid-cell {
+            border: 2px solid rgba(0,255,204,0.8);
+            position: relative;
+            transition: 0.2s;
+            background: rgba(0,255,204,0.05);
+        }
+        .grid-cell:hover {
+            background: rgba(0,255,204,0.15);
+            box-shadow: inset 0 0 15px rgba(0,255,204,0.4);
+        }
+
+        /* 塔样式 + 等级特效 */
+        .tower {
+            position: absolute;
+            width: 55px;
+            height: 55px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+            border: 2px solid #fff;
+            color: #fff;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        /* 基础塔颜色 */
+        .tower-1 { background: #00ffcc; color: #000; }
+        .tower-2 { background: #ff6b35; }
+        .tower-3 { background: #ff00ff; }
+        .tower-4 { background: #0099ff; }
+        .tower-5 { background: #ff3300; }
+        .tower-6 { background: #ffff00; color: #000; }
+        .tower-7 { background: #9900ff; }
+        .tower-8 { background: #00ff66; }
+        .tower-9 { background: #ff9900; }
+        .tower-10 { background: #00ffff; color: #000; }
+        .tower-11 { background: #ff0066; }
+        .tower-12 { background: #66ff00; }
+        /* 等级外观 */
+        .tower-level-2 { border: 3px solid #ffd700 !important; box-shadow: 0 0 10px #ffd700; }
+        .tower-level-3 { border: 3px solid #ff00cc !important; box-shadow: 0 0 15px #ff00cc, 0 0 25px #ff00cc; }
+
+        /* 子弹/特效 */
+        .bullet { position: absolute; width: 6px; height: 6px; background: #00ffcc; border-radius: 50%; z-index: 1; }
+        .bullet-2 { background: #ff6b35; width: 8px; height: 8px; }
+        .bullet-3 { background: #ff00ff; width: 4px; }
+        .bullet-4 { background: #0099ff; }
+        .bullet-5 { background: #ff3300; }
+        .bullet-6 { background: #ffff00; }
+        .bullet-7 { background: #9900ff; }
+        .bullet-8 { background: #00ff66; width: 5px; }
+        .bullet-9 { background: #ff9900; width: 10px; height: 10px; }
+        .bullet-10 { background: #00ffff; }
+        .bullet-11 { background: #ff0066; }
+        .bullet-12 { background: #66ff00; }
+        .effect { position: absolute; border-radius: 50%; z-index: 1; animation: explode 0.5s forwards; }
+        .effect-ice { background: radial-gradient(circle, #0099ff, transparent); width: 60px; height: 60px; }
+        .effect-fire { background: radial-gradient(circle, #ff3300, transparent); width: 70px; height: 70px; }
+        .effect-light { background: radial-gradient(circle, #ffff00, transparent); width: 80px; height: 80px; }
+        .effect-poison { background: radial-gradient(circle, #9900ff, transparent); width: 50px; height: 50px; }
+
+        /* 外星人 */
+        .alien {
+            position: absolute;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            z-index: 2;
+            border: 2px solid #fff;
+        }
+        .alien-normal { width: 45px; height: 45px; background: #ff3366; }
+        .alien-shield { width: 50px; height: 50px; background: #6666ff; }
+        .alien-fast { width: 40px; height: 40px; background: #33ffcc; }
+        .alien-big { width: 65px; height: 65px; background: #ff6600; }
+
+        /* 🔥 升级特效动画 */
+        @keyframes flash {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        @keyframes auraExpand {
+            0% { transform: scale(0.2); opacity: 1; }
+            100% { transform: scale(2.5); opacity: 0; }
+        }
+        @keyframes textFloat {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-30px); opacity: 0; }
+        }
+        @keyframes maxParticles {
+            0% { transform: rotate(0deg) scale(1); opacity: 0.8; }
+            50% { transform: rotate(180deg) scale(1.2); opacity: 1; }
+            100% { transform: rotate(360deg) scale(1); opacity: 0.8; }
+        }
+        @keyframes blink { 0%{opacity:1;} 50%{opacity:0.5;} 100%{opacity:1;} }
+        @keyframes explode { 0%{transform:scale(0); opacity:1;} 100%{transform:scale(1.5); opacity:0;} }
+    </style>
+</head>
+<body>
+
+<!-- 🔥 新增：升级音效（隐藏自动加载） -->
+<audio id="levelUpSound" preload="auto">
+  <source src="https://assets.mixkit.co/sfx/preview/mixkit-achievement-bell-600.mp3" type="audio/mpeg">
+</audio>
+<audio id="maxLevelSound" preload="auto">
+  <source src="https://assets.mixkit.co/sfx/preview/mixkit-ethereal-fairy-win-sound-2019.mp3" type="audio/mpeg">
+</audio>
+
+<!-- 🔥 升级特效元素 -->
+<div id="upgradeFlash"></div>
+
+<!-- 升级面板 -->
+<div id="upgradePanel">
+    <div class="level-text">当前等级：<span id="towerLevel">1</span></div>
+    <button class="upgrade-btn" id="upgradeBtn" onclick="upgradeTower()">升级（30金币）</button>
+</div>
+
+<!-- 拖拽铲子 -->
+<div id="shovel">🧰</div>
+
+<!-- 开始界面 -->
+<div id="startScreen">
+    <h1 class="game-title-main">人类大战外星人</h1>
+    <div class="rule-box">
+        <h2 class="rule-title">🎮 12种塔防 + 3级升级 + 特效+音效</h2>
+        <p class="rule-text"><strong>✅ 升级：</strong>闪光+光环+飘字+清脆音效！</p>
+        <p class="rule-text"><strong>✅ 满级：</strong>彩虹粒子+华丽成就音！</p>
+        <p class="rule-text"><strong>✅ 操作：</strong>点击塔→升级，全格子可放塔！</p>
+    </div>
+    <button class="start-btn" onclick="startGame()">开始游戏</button>
+</div>
+
+<!-- 游戏主界面 -->
+<h1 class="title">👽 塔防大战外星人</h1>
+<div class="game-info">
+    <div>关卡：<span id="level">1</span></div>
+    <div>外星人：<span id="count">0</span></div>
+    <div>金币：<span id="gold">150</span></div>
+</div>
+<div class="btn-box">
+    <button class="game-btn" onclick="startWave()">开始波次</button>
+    <button class="game-btn" onclick="resetGame()">重置游戏</button>
+</div>
+
+<div class="main-container">
+    <div class="tower-menu">
+        <div class="tower-card" onclick="selectTower(1)">射手塔<br>20金</div>
+        <div class="tower-card" onclick="selectTower(2)">炸弹塔<br>35金</div>
+        <div class="tower-card" onclick="selectTower(3)">激光塔<br>50金</div>
+        <div class="tower-card" onclick="selectTower(4)">寒冰塔<br>40金</div>
+        <div class="tower-card" onclick="selectTower(5)">火焰塔<br>45金</div>
+        <div class="tower-card" onclick="selectTower(6)">闪电塔<br>60金</div>
+        <div class="tower-card" onclick="selectTower(7)">剧毒塔<br>55金</div>
+        <div class="tower-card" onclick="selectTower(8)">狙击塔<br>70金</div>
+        <div class="tower-card" onclick="selectTower(9)">重炮塔<br>80金</div>
+        <div class="tower-card" onclick="selectTower(10)">磁暴塔<br>65金</div>
+        <div class="tower-card" onclick="selectTower(11)">裂甲塔<br>75金</div>
+        <div class="tower-card" onclick="selectTower(12)">增益塔<br>90金</div>
+    </div>
+
+    <div class="battle-ground" id="map"></div>
+</div>
+
+<script>
+// 全局配置
+const ROWS = 5, COLS = 9;
+let gameRunning = false, selectedTower = 0, level = 1, gold = 150;
+let towers = [], aliens = [], bullets = [];
+let selectedTowerObj = null;
+const map = document.getElementById('map');
+const upgradePanel = document.getElementById('upgradePanel');
+const upgradeFlash = document.getElementById('upgradeFlash');
+// 🔥 新增：获取音效元素
+const levelUpSound = document.getElementById('levelUpSound');
+const maxLevelSound = document.getElementById('maxLevelSound');
+
+// 12种塔防属性
+const TOWERS = [
+    {},
+    {dmg:20, rate:350, price:20, name:"射"},
+    {dmg:30, rate:500, price:35, name:"炸"},
+    {dmg:50, rate:200, price:50, name:"激"},
+    {dmg:10, rate:400, price:40, name:"冰"},
+    {dmg:15, rate:450, price:45, name:"火"},
+    {dmg:25, rate:600, price:60, name:"电"},
+    {dmg:8,  rate:300, price:55, name:"毒"},
+    {dmg:80, rate:800, price:70, name:"狙"},
+    {dmg:50, rate:1000,price:80, name:"炮"},
+    {dmg:12, rate:550, price:65, name:"暴"},
+    {dmg:40, rate:700, price:75, name:"甲"},
+    {dmg:0,  rate:1000,price:90, name:"益"}
+];
+
+// 初始化地图
+function initMap() {
+    map.innerHTML = '';
+    for(let r=0; r<ROWS; r++){
+        for(let c=0; c<COLS; c++){
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
+            cell.dataset.r = r; cell.dataset.c = c;
+            cell.onclick = () => placeTower(cell);
+            map.appendChild(cell);
+        }
+    }
+}
+
+// 选择塔
+function selectTower(type) {
+    selectedTower = type;
+    selectedTowerObj = null;
+    upgradePanel.style.display = 'none';
+    document.querySelectorAll('.tower-card').forEach(c=>c.classList.remove('active'));
+    event.target.closest('.tower-card').classList.add('active');
+}
+
+// 放置塔
+function placeTower(cell) {
+    if(!selectedTower || cell.children.length>0) return;
+    const t = TOWERS[selectedTower];
+    if(gold < t.price) return alert("金币不足！");
+    
+    gold -= t.price;
+    document.getElementById('gold').textContent = gold;
+    
+    const tower = document.createElement('div');
+    tower.className = `tower tower-${selectedTower}`;
+    tower.textContent = t.name;
+    tower.onclick = (e) => {
+        e.stopPropagation();
+        selectTowerForUpgrade(tower);
+    };
+    cell.appendChild(tower);
+    
+    towers.push({
+        el:tower, r:+cell.dataset.r, c:+cell.dataset.c,
+        type:selectedTower, last:0, dmg:t.dmg, rate:t.rate,
+        level: 1, maxLevel: 3
+    });
+}
+
+// 选中升级塔
+function selectTowerForUpgrade(towerEl) {
+    selectedTowerObj = towers.find(t => t.el === towerEl);
+    if(!selectedTowerObj) return;
+
+    document.getElementById('towerLevel').textContent = selectedTowerObj.level;
+    const btn = document.getElementById('upgradeBtn');
+    
+    if(selectedTowerObj.level >= selectedTowerObj.maxLevel) {
+        btn.textContent = "已满级";
+        btn.disabled = true;
+    } else if(selectedTowerObj.level === 1) {
+        btn.textContent = "升级（30金币）";
+        btn.disabled = gold < 30;
+    } else {
+        btn.textContent = "升级（50金币）";
+        btn.disabled = gold < 50;
+    }
+
+    const rect = towerEl.getBoundingClientRect();
+    upgradePanel.style.left = rect.right + 10 + 'px';
+    upgradePanel.style.top = rect.top + 'px';
+    upgradePanel.style.display = 'block';
+}
+
+// 🔥 触发升级特效+音效
+function playUpgradeEffect(towerEl) {
+    // 1. 全屏闪光
+    upgradeFlash.style.display = 'block';
+    setTimeout(() => upgradeFlash.style.display = 'none', 300);
+
+    // 2. 扩散光环
+    const rect = towerEl.getBoundingClientRect();
+    const aura = document.createElement('div');
+    aura.className = 'upgrade-aura';
+    aura.style.left = (rect.left + rect.width/2 - 40) + 'px';
+    aura.style.top = (rect.top + rect.height/2 - 40) + 'px';
+    aura.style.width = '80px';
+    aura.style.height = '80px';
+    document.body.appendChild(aura);
+    setTimeout(() => aura.remove(), 800);
+
+    // 3. 升级飘字
+    const text = document.createElement('div');
+    text.className = 'upgrade-text';
+    text.textContent = 'LEVEL UP!';
+    text.style.left = (rect.left + rect.width/2 - 30) + 'px';
+    text.style.top = (rect.top - 20) + 'px';
+    document.body.appendChild(text);
+    setTimeout(() => text.remove(), 1000);
+
+    // 🔥 播放升级音效
+    levelUpSound.currentTime = 0;
+    levelUpSound.play().catch(err => console.log("音效播放需用户交互"));
+}
+
+// 🔥 满级特效+专属音效
+function playMaxLevelEffect(towerEl) {
+    const particles = document.createElement('div');
+    particles.className = 'max-level-particles';
+    const rect = towerEl.getBoundingClientRect();
+    particles.style.left = (rect.left + rect.width/2 - 40) + 'px';
+    particles.style.top = (rect.top + rect.height/2 - 40) + 'px';
+    document.body.appendChild(particles);
+    setTimeout(() => particles.remove(), 3000);
+
+    // 🔥 播放满级专属音效
+    maxLevelSound.currentTime = 0;
+    maxLevelSound.play().catch(err => console.log("音效播放需用户交互"));
+}
+
+// 升级塔 + 特效+音效
+function upgradeTower() {
+    if(!selectedTowerObj) return;
+    const currentLevel = selectedTowerObj.level;
+    
+    // 扣费
+    let cost = 0;
+    if(currentLevel === 1) cost = 30;
+    else if(currentLevel === 2) cost = 50;
+    if(gold < cost) { alert("金币不足！"); return; }
+
+    gold -= cost;
+    document.getElementById('gold').textContent = gold;
+
+    // 升级属性
+    selectedTowerObj.level++;
+    selectedTowerObj.dmg = Math.floor(selectedTowerObj.dmg * 1.5);
+    selectedTowerObj.rate = Math.floor(selectedTowerObj.rate * 0.7);
+
+    // 更换外观
+    selectedTowerObj.el.classList.remove('tower-level-2', 'tower-level-3');
+    if(selectedTowerObj.level === 2) {
+        selectedTowerObj.el.classList.add('tower-level-2');
+    } else if(selectedTowerObj.level === 3) {
+        selectedTowerObj.el.classList.add('tower-level-3');
+        playMaxLevelEffect(selectedTowerObj.el); // 满级特效+音效
+    }
+
+    // 播放基础升级特效+音效
+    playUpgradeEffect(selectedTowerObj.el);
+
+    // 更新面板
+    document.getElementById('towerLevel').textContent = selectedTowerObj.level;
+    selectTowerForUpgrade(selectedTowerObj.el);
+}
+
+// 生成外星人
+function spawnAlien() {
+    const r = Math.floor(Math.random()*ROWS);
+    const alien = document.createElement('div');
+    const types = ['normal','shield','fast','big'];
+    const type = types[Math.floor(Math.random()*types.length)];
+    alien.className = `alien ${'alien-'+type}`;
+    alien.textContent = '👽';
+    map.appendChild(alien);
+    
+    const x = COLS*133 - 50;
+    const y = r*120 + 30;
+    aliens.push({
+        el:alien, x:x, y:y, r:r, hp: type=='big'?200:type=='shield'?150:type=='fast'?80:100,
+        speed: type=='fast'?1.5:type=='big'?0.5:1, slow:0, stun:0
+    });
+}
+
+// 游戏主循环
+function loop() {
+    if(!gameRunning) return;
+    const now = Date.now();
+    
+    towers.forEach(t=>{
+        if(now - t.last < t.rate || t.dmg==0) return;
+        t.last = now;
+        const target = aliens.find(a=>a.r==t.r && a.hp>0);
+        if(!target) return;
+        
+        const bullet = document.createElement('div');
+        bullet.className = `bullet bullet-${t.type}`;
+        map.appendChild(bullet);
+        bullets.push({el:bullet, x:t.c*133+66, y:t.r*120+60, target, dmg:t.dmg, type:t.type});
+    });
+    
+    bullets.forEach((b,i)=>{
+        if(!b.target || b.target.hp<=0){ b.el.remove(); bullets.splice(i,1); return; }
+        const dx = b.target.x - b.x, dy = b.target.y - b.y;
+        const dist = Math.hypot(dx,dy);
+        if(dist < 10){ hit(b); b.el.remove(); bullets.splice(i,1); return; }
+        b.x += dx/dist*8; b.y += dy/dist*8;
+        b.el.style.left = b.x+'px'; b.el.style.top = b.y+'px';
+    });
+    
+    aliens.forEach((a,i)=>{
+        if(a.hp<=0){ a.el.remove(); aliens.splice(i,1); gold+=10; document.getElementById('gold').textContent=gold; return; }
+        if(a.stun<=0) a.x -= a.speed * (a.slow>0?0.5:1);
+        a.slow = Math.max(0, a.slow-1); a.stun = Math.max(0, a.stun-1);
+        a.el.style.left = a.x+'px'; a.el.style.top = a.y+'px';
+        if(a.x < 0) gameOver();
+    });
+    
+    document.getElementById('count').textContent = aliens.length;
+    requestAnimationFrame(loop);
+}
+
+// 命中逻辑
+function hit(b) {
+    const t = b.target;
+    t.hp -= b.dmg;
+    
+    if(b.type==4) t.slow = 60;
+    if(b.type==10) t.stun = 30;
+    if(b.type==6) aliens.forEach(a=>{if(a.r==t.r&&a!=t) a.hp-=15;});
+    
+    const fx = document.createElement('div');
+    fx.className = `effect ${b.type==4?'effect-ice':b.type==5?'effect-fire':b.type==6?'effect-light':b.type==7?'effect-poison':''}`;
+    fx.style.left = t.x+'px'; fx.style.top = t.y+'px';
+    map.appendChild(fx);
+    setTimeout(() => fx.remove(), 500);
+}
+
+// 工具函数
+function startGame(){ document.getElementById('startScreen').style.display='none'; document.querySelectorAll('.title,.game-info,.btn-box,.main-container,#shovel').forEach(e=>e.style.display='flex'); initMap(); }
+function startWave(){ gameRunning=true; loop(); setInterval(spawnAlien, 1500); }
+function resetGame(){ location.reload(); }
+function gameOver(){ gameRunning=false; alert("游戏失败！外星人突破防线！"); location.reload(); }
+
+// 点击空白关闭面板
+document.onclick = (e) => {
+    if(!upgradePanel.contains(e.target) && !e.target.classList.contains('tower')) {
+        upgradePanel.style.display = 'none';
+        selectedTowerObj = null;
+    }
+};
+</script>
+</body>
+</html>

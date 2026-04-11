@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>绿黑坦克·50发解锁技能版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: #1a1a2e;
+            font-family: Arial, sans-serif;
+            padding: 20px 0;
+        }
+        .game-hud {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .game-info {
+            display: flex;
+            gap: 25px;
+            margin-bottom: 5px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        #score, #difficulty, #lives, #bulletCount, #skillStatus {
+            color: #87ceeb;
+            font-size: 22px;
+            text-shadow: 0 0 5px rgba(135,206,235,0.5);
+        }
+        #skillStatus {
+            color: #ffd166; /* 技能状态黄色高亮 */
+        }
+        #gatlingCooldown {
+            color: #ffd166;
+            font-size: 18px;
+            font-weight: bold;
+            display: none;
+        }
+        #gameCanvas {
+            border: 2px solid #87ceeb;
+            background: #16213e;
+        }
+        #restartBtn {
+            margin-top: 15px;
+            padding: 10px 20px;
+            font-size: 18px;
+            background: #4cc9f0;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none;
+            color: #16213e;
+        }
+        .audio-tip {
+            color: #87ceeb;
+            font-size: 14px;
+            margin: 8px 0;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <p class="audio-tip">🎵 按M键开关音乐 | 空格射击 | Shift加特林 | 累计50发子弹按【C键】解锁技能</p>
+
+    <div class="game-hud">
+        <div class="game-info">
+            <div id="score">得分: 0</div>
+            <div id="difficulty">难度: 1/10</div>
+            <div id="lives">生命: 3</div>
+            <div id="bulletCount">子弹数: 0</div>
+            <div id="skillStatus">技能: 未解锁</div>
+        </div>
+        <div id="gatlingCooldown">加特林冷却中：8秒</div>
+    </div>
+    <canvas id="gameCanvas" width="480" height="600"></canvas>
+    <button id="restartBtn">重新开始游戏</button>
+
+    <!-- 在线背景音乐 -->
+    <audio id="bgmPlayer" loop preload="auto" style="display:none;">
+        <source src="https://mir-s.cdn.instagram.com/audio/muxed/ig_direct_audio/1020515840510510/17412568147787515.mp4" type="audio/mp4">
+    </audio>
+
+    <script>
+        const GAME_CONFIG = {
+            canvasWidth: 480,
+            canvasHeight: 600,
+            playerSpeed: 5,
+            bulletSpeed: 8,
+            gatling: { triggerKey: 'ShiftLeft', duration: 2000, cooldown: 8000, fireRate: 15, bulletColor: '#ffd166' },
+            colors: {
+                playerBody: '#2e7d32', playerTurret: '#1b5e20', playerGun: '#000000',
+                playerTrack: '#424242', playerThruster: '#ff6b6b', bullet: '#9b5de5', gameOverText: '#f4a261'
+            },
+            enemies: [
+                { type: 'normal', color: '#f15bb5', hp: 1, score: 1, probability: 60 },
+                { type: 'blue', color: '#4cc9f0', hp: 3, score: 2, probability: 30 },
+                { type: 'red', color: '#f44336', hp: 5, score: 4, probability: 10 }
+            ],
+            maxDifficulty: 10, scorePerLevel: 50, initialEnemySpeed: 1.5,
+            enemySpeedIncrement: 0.1, initialSpawnInterval: 1000, spawnIntervalDecrement: 50, minSpawnInterval: 500
+        };
+
+        // ========== 游戏核心变量 ==========
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreText = document.getElementById('score');
+        const difficultyText = document.getElementById('difficulty');
+        const livesText = document.getElementById('lives');
+        const bulletCountText = document.getElementById('bulletCount');
+        const skillStatusText = document.getElementById('skillStatus');
+        const gatlingCooldownText = document.getElementById('gatlingCooldown');
+        const restartBtn = document.getElementById('restartBtn');
+        const bgmPlayer = document.getElementById('bgmPlayer');
+
+        let gameOver = false;
+        let score = 0;
+        let currentDifficulty = 1;
+        let nextLevelScore = GAME_CONFIG.scorePerLevel;
+        let currentSpawnInterval;
+        let currentEnemyBaseSpeed;
+        
+        // 玩家生命
+        let playerLives = 3;
+        let isInvincible = false;
+        const invincibleTime = 1000;
+
+        // 加特林状态
+        let gatlingState = { isActive: false, lastTriggerTime: 0, lastFireTime: 0 };
+
+        // ========== 【新增】50发子弹解锁技能系统 ==========
+        let bulletCount = 0;       // 累计发射子弹数
+        let skillUnlocked = false; // 技能是否解锁
+        let skillCooldown = 0;     // 技能冷却时间
+        const SKILL_COST = 50;     // 解锁需要50发子弹
+        const SKILL_INVINCIBLE = 3000; // 技能触发后无敌3秒
+
+        // 玩家坦克
+        const player = { x: canvas.width / 2 - 30, y: canvas.height - 100, width: 60, height: 70, speed: GAME_CONFIG.playerSpeed };
+        let bullets = [];
+        let enemies = [];
+
+        // 键盘控制
+        const keys = { w: false, s: false, a: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, space: false, ShiftLeft: false, c: false };
+
+        // ========== 键盘事件监听 ==========
+        document.addEventListener('keydown', (e) => {
+            if(e.key in keys) keys[e.key] = true;
+            if(e.key === ' ' && !gameOver) shootBullet(false);
+            if(e.key === GAME_CONFIG.gatling.triggerKey && !gameOver && canTriggerGatling()) triggerGatling();
+            if(e.key === 'm' || e.key === 'M') bgmPlayer.paused ? bgmPlayer.play() : bgmPlayer.pause();
+            // 【C键触发技能】
+            if(e.key.toLowerCase() === 'c' && !gameOver && skillUnlocked && skillCooldown <= 0) triggerSkill();
+        });
+        document.addEventListener('keyup', (e) => { if(e.key in keys) keys[e.key] = false; });
+        restartBtn.addEventListener('click', resetGame);
+
+        // ========== 【新增】技能触发函数 ==========
+        function triggerSkill() {
+            // 清空所有敌人
+            enemies = [];
+            // 玩家无敌3秒
+            isInvincible = true;
+            setTimeout(() => isInvincible = false, SKILL_INVINCIBLE);
+            // 技能冷却10秒
+            skillCooldown = 10000;
+            skillStatusText.textContent = `技能: 冷却中(10s)`;
+        }
+
+        // ========== 子弹发射（计数+1） ==========
+        function shootBullet(isGatling=false) {
+            if(gameOver) return;
+            bullets.push({
+                x: player.x + player.width/2 -2.5, y:player.y, width:5, height:15,
+                speed: GAME_CONFIG.bulletSpeed, color: isGatling ? GAME_CONFIG.gatling.bulletColor : GAME_CONFIG.colors.bullet, isGatling:isGatling
+            });
+            // 子弹计数+1
+            bulletCount++;
+            bulletCountText.textContent = `子弹数: ${bulletCount}`;
+            // 达到50发，解锁技能
+            if(bulletCount >= SKILL_COST && !skillUnlocked) {
+                skillUnlocked = true;
+                skillStatusText.textContent = `技能: 已解锁(按C)`;
+            }
+        }
+
+        // ========== 加特林系统 ==========
+        function canTriggerGatling() {
+            const now = Date.now();
+            return now - gatlingState.lastTriggerTime >= GAME_CONFIG.gatling.cooldown;
+        }
+        function triggerGatling() {
+            const now = Date.now();
+            gatlingState.isActive = true;
+            gatlingState.lastTriggerTime = now;
+            gatlingState.lastFireTime = now;
+            gatlingCooldownText.style.display = 'block';
+            updateGatlingCooldownText();
+        }
+        function fireGatlingBullet() {
+            const now = Date.now();
+            const fireInterval = 1000 / GAME_CONFIG.gatling.fireRate;
+            if(now - gatlingState.lastFireTime >= fireInterval) {
+                shootBullet(true); // 加特林子弹也计数
+                gatlingState.lastFireTime = now;
+            }
+            if(now - gatlingState.lastTriggerTime >= GAME_CONFIG.gatling.duration) {
+                gatlingState.isActive = false;
+            }
+        }
+        function updateGatlingCooldownText() {
+            const now = Date.now();
+            const remaining = GAME_CONFIG.gatling.cooldown - (now - gatlingState.lastTriggerTime);
+            if(remaining <=0) {
+                gatlingCooldownText.style.display = 'none';
+            } else {
+                gatlingCooldownText.textContent = `加特林冷却中：${(remaining/1000).toFixed(1)}秒`;
+            }
+        }
+
+        // ========== 难度系统 ==========
+        function initDifficulty() {
+            currentDifficulty = 1;
+            nextLevelScore = GAME_CONFIG.scorePerLevel;
+            currentSpawnInterval = GAME_CONFIG.initialSpawnInterval;
+            currentEnemyBaseSpeed = GAME_CONFIG.initialEnemySpeed;
+            difficultyText.textContent = `难度: ${currentDifficulty}/${GAME_CONFIG.maxDifficulty}`;
+        }
+        function checkLevelUp() {
+            if (currentDifficulty < GAME_CONFIG.maxDifficulty && score >= nextLevelScore) {
+                currentDifficulty++;
+                nextLevelScore += GAME_CONFIG.scorePerLevel;
+                currentSpawnInterval = Math.max(GAME_CONFIG.initialSpawnInterval - (currentDifficulty-1)*GAME_CONFIG.spawnIntervalDecrement, GAME_CONFIG.minSpawnInterval);
+                currentEnemyBaseSpeed = GAME_CONFIG.initialEnemySpeed + (currentDifficulty-1)*GAME_CONFIG.enemySpeedIncrement;
+                difficultyText.textContent = `难度: ${currentDifficulty}/${GAME_CONFIG.maxDifficulty}`;
+            }
+        }
+
+        // ========== 敌人生成 ==========
+        function spawnEnemy() {
+            if(gameOver) return;
+            let rand = Math.random()*100;
+            let selectedEnemy;
+            if(currentDifficulty >=5) rand += 15;
+            GAME_CONFIG.enemies.forEach(en => { if(rand <= en.probability && !selectedEnemy) selectedEnemy = en; rand -= en.probability; });
+            enemies.push({ x: Math.random()*(canvas.width-40), y: -50, width:40, height:40, speed: currentEnemyBaseSpeed + Math.random()*0.5, color: selectedEnemy.color, hp: selectedEnemy.hp, maxHp: selectedEnemy.hp, score: selectedEnemy.score });
+            window.enemySpawnTimer = setTimeout(spawnEnemy, currentSpawnInterval);
+        }
+
+        // ========== 碰撞检测 ==========
+        function checkCollision(obj1,obj2){
+            return obj1.x < obj2.x+obj2.width && obj1.x+obj1.width>obj2.x && obj1.y<obj2.y+obj2.height && obj1.y+obj1.height>obj2.y;
+        }
+
+        // ========== 玩家受伤 ==========
+        function playerHit() {
+            if(isInvincible) return;
+            playerLives--;
+            livesText.textContent = `生命: ${playerLives}`;
+            if(playerLives <= 0){ gameOver = true; restartBtn.style.display = 'block'; return; }
+            isInvincible = true;
+            player.x=canvas.width/2-player.width/2;
+            player.y=canvas.height-player.height-20;
+            setTimeout(() => isInvincible = false, invincibleTime);
+        }
+
+        // ========== 游戏更新逻辑 ==========
+        function update() {
+            if(gameOver) return;
+            // 技能冷却倒计时
+            if(skillCooldown > 0) {
+                skillCooldown -= 16;
+                if(skillCooldown <= 0) skillStatusText.textContent = `技能: 已解锁(按C)`;
+                else skillStatusText.textContent = `技能: 冷却中(${Math.ceil(skillCooldown/1000)}s)`;
+            }
+
+            if(gatlingState.isActive) fireGatlingBullet();
+            if(Date.now()-gatlingState.lastTriggerTime < GAME_CONFIG.gatling.cooldown) updateGatlingCooldownText();
+
+            // 玩家移动
+            if((keys.a||keys.ArrowLeft)&&player.x>0) player.x-=player.speed;
+            if((keys.d||keys.ArrowRight)&&player.x<canvas.width-player.width) player.x+=player.speed;
+            if((keys.w||keys.ArrowUp)&&player.y>0) player.y-=player.speed;
+            if((keys.s||keys.ArrowDown)&&player.y<canvas.height-player.height) player.y+=player.speed;
+
+            // 子弹移动
+            bullets.forEach((b,i)=>{ b.y-=b.speed; if(b.y<0)bullets.splice(i,1); });
+
+            // 敌人逻辑
+            enemies.forEach((enemy,idx)=>{
+                enemy.y += enemy.speed;
+                if(checkCollision(enemy,player)) playerHit();
+                if(enemy.y>canvas.height){enemies.splice(idx,1);return;}
+                // 子弹击中敌人
+                bullets.forEach((b,bIdx)=>{
+                    if(checkCollision(b,enemy)){
+                        bullets.splice(bIdx,1);
+                        enemy.hp--;
+                        if(enemy.hp<=0){ score += enemy.score; scoreText.textContent=`得分: ${score}`; enemies.splice(idx,1); checkLevelUp(); }
+                    }
+                });
+            });
+        }
+
+        // ========== 绘制坦克 ==========
+        function drawPlayerTank() {
+            const centerX = player.x + player.width/2;
+            ctx.fillStyle = GAME_CONFIG.colors.playerTrack; ctx.fillRect(player.x, player.y + 30, 10, 40); ctx.fillRect(player.x + 50, player.y + 30, 10, 40);
+            ctx.fillStyle = GAME_CONFIG.colors.playerBody; ctx.fillRect(player.x + 10, player.y + 35, 40, 30); ctx.fillRect(player.x + 15, player.y + 20, 30, 15);
+            ctx.fillStyle = GAME_CONFIG.colors.playerTurret; ctx.beginPath(); ctx.arc(centerX, player.y + 25, 18, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = GAME_CONFIG.colors.playerGun; ctx.fillRect(centerX - 3, player.y - 10, 6, 35);
+            ctx.fillStyle = gatlingState.isActive ? '#388e3c' : GAME_CONFIG.colors.playerThruster;
+            ctx.beginPath(); ctx.moveTo(player.x + 20, player.y + 70); ctx.lineTo(player.x + 30, player.y + 85); ctx.lineTo(player.x + 40, player.y + 70); ctx.fill();
+            if (isInvincible) ctx.globalAlpha = 0.5;
+        }
+
+        // ========== 绘制画面 ==========
+        function draw() {
+            ctx.fillStyle='#16213e';ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.globalAlpha = 1;
+            drawPlayerTank();
+            bullets.forEach(b=>{ctx.fillStyle=b.color;ctx.fillRect(b.x,b.y,b.width,b.height);});
+            enemies.forEach(en=>{
+                ctx.fillStyle=en.color;ctx.fillRect(en.x,en.y,en.width,en.height);
+                if(en.maxHp>1){ ctx.fillStyle='#333';ctx.fillRect(en.x,en.y-10,40,5); ctx.fillStyle='#0f0';ctx.fillRect(en.x,en.y-10,40*(en.hp/en.maxHp),5); }
+            });
+            if(gameOver){
+                ctx.fillStyle=GAME_CONFIG.colors.gameOverText; ctx.font='40px Arial';ctx.textAlign='center';
+                ctx.fillText('游戏结束',canvas.width/2,canvas.height/2-80);
+                ctx.font='24px Arial'; ctx.fillText(`最终得分: ${score}`,canvas.width/2,canvas.height/2-30);
+            }
+        }
+
+        // ========== 游戏循环 ==========
+        function gameLoop() {update();draw();requestAnimationFrame(gameLoop);}
+        function resetGame() {
+            gameOver=false;score=0;bullets=[];enemies=[];
+            playerLives = 3; livesText.textContent = `生命: ${playerLives}`;
+            isInvincible = false;
+            // 重置子弹计数和技能
+            bulletCount = 0; bulletCountText.textContent = `子弹数: 0`;
+            skillUnlocked = false; skillStatusText.textContent = `技能: 未解锁`;
+            skillCooldown = 0;
+            gatlingState={isActive:false,lastTriggerTime:0,lastFireTime:0};
+            gatlingCooldownText.style.display='none';
+            player.x=canvas.width/2-player.width/2; player.y=canvas.height-player.height-20;
+            scoreText.textContent=`得分: ${score}`;
+            initDifficulty();
+            restartBtn.style.display='none';
+            clearTimeout(window.enemySpawnTimer);
+            window.enemySpawnTimer=setTimeout(spawnEnemy,currentSpawnInterval);
+        }
+
+        // 启动游戏
+        initDifficulty();
+        window.enemySpawnTimer=setTimeout(spawnEnemy,currentSpawnInterval);
+        gameLoop();
+        setTimeout(()=>bgmPlayer.play().catch(err=>console.log('点击页面播放音乐')), 1000);
+    </script>
+</body>
+</html>

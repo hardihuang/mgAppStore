@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>格斗游戏</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            font-family: Arial, sans-serif;
+        }
+        #gameContainer {
+            text-align: center;
+        }
+        canvas {
+            border: 3px solid #e94560;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
+        }
+        #controls {
+            color: #fff;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        #controls h3 {
+            color: #e94560;
+            margin-bottom: 10px;
+        }
+        .player-controls {
+            display: inline-block;
+            margin: 0 30px;
+            text-align: left;
+        }
+        .player-controls h4 {
+            color: #0f3460;
+            background: #e94560;
+            padding: 5px 15px;
+            border-radius: 20px;
+            margin-bottom: 10px;
+        }
+        .key {
+            display: inline-block;
+            background: #0f3460;
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin: 2px;
+            font-weight: bold;
+        }
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 30px 50px;
+            border-radius: 10px;
+            border: 2px solid #e94560;
+            display: none;
+        }
+        #gameOver h2 {
+            color: #e94560;
+            margin-bottom: 20px;
+        }
+        #restartBtn {
+            background: #e94560;
+            color: #fff;
+            border: none;
+            padding: 10px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #restartBtn:hover {
+            background: #ff6b6b;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        <div id="controls">
+            <h3>🎮 操作说明</h3>
+            <div class="player-controls">
+                <h4>玩家1 (蓝色)</h4>
+                <p><span class="key">A</span> <span class="key">D</span> 移动</p>
+                <p><span class="key">W</span> 跳跃</p>
+                <p><span class="key">S</span> 防御</p>
+                <p><span class="key">空格</span> 攻击</p>
+            </div>
+            <div class="player-controls">
+                <h4>玩家2 (红色)</h4>
+                <p><span class="key">←</span> <span class="key">→</span> 移动</p>
+                <p><span class="key">↑</span> 跳跃</p>
+                <p><span class="key">↓</span> 防御</p>
+                <p><span class="key">Enter</span> 攻击</p>
+            </div>
+        </div>
+    </div>
+    <div id="gameOver">
+        <h2 id="winnerText">玩家1 获胜！</h2>
+        <button id="restartBtn">重新开始</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameOverScreen = document.getElementById('gameOver');
+        const winnerText = document.getElementById('winnerText');
+        const restartBtn = document.getElementById('restartBtn');
+
+        // 游戏状态
+        let gameRunning = true;
+        let frameCount = 0;
+
+        // 玩家类
+        class Fighter {
+            constructor(x, color, isPlayer1) {
+                this.x = x;
+                this.y = 300;
+                this.width = 50;
+                this.height = 80;
+                this.color = color;
+                this.isPlayer1 = isPlayer1;
+                this.hp = 100;
+                this.maxHp = 100;
+                this.speed = 5;
+                this.jumpPower = 15;
+                this.velocityY = 0;
+                this.isJumping = false;
+                this.isAttacking = false;
+                this.isDefending = false;
+                this.attackCooldown = 0;
+                this.facing = isPlayer1 ? 1 : -1;
+                this.hitStun = 0;
+            }
+
+            update() {
+                // 重力
+                if (this.y < 300) {
+                    this.velocityY += 0.8;
+                    this.y += this.velocityY;
+                } else {
+                    this.y = 300;
+                    this.velocityY = 0;
+                    this.isJumping = false;
+                }
+
+                // 攻击冷却
+                if (this.attackCooldown > 0) this.attackCooldown--;
+                if (this.hitStun > 0) this.hitStun--;
+            }
+
+            jump() {
+                if (!this.isJumping) {
+                    this.velocityY = -this.jumpPower;
+                    this.isJumping = true;
+                }
+            }
+
+            attack() {
+                if (this.attackCooldown === 0 && !this.isDefending) {
+                    this.isAttacking = true;
+                    this.attackCooldown = 30;
+                    setTimeout(() => this.isAttacking = false, 200);
+                }
+            }
+
+            defend(active) {
+                this.isDefending = active;
+            }
+
+            takeDamage(damage) {
+                if (this.isDefending) {
+                    damage = Math.floor(damage * 0.3);
+                }
+                this.hp -= damage;
+                this.hitStun = 10;
+                if (this.hp < 0) this.hp = 0;
+            }
+
+            draw() {
+                // 阴影
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.beginPath();
+                ctx.ellipse(this.x + this.width/2, 380, 25, 8, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 身体
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                // 头部
+                ctx.fillStyle = '#ffdbac';
+                ctx.fillRect(this.x + 10, this.y - 20, 30, 30);
+
+                // 眼睛（朝向对手）
+                ctx.fillStyle = '#000';
+                if (this.facing === 1) {
+                    ctx.fillRect(this.x + 25, this.y - 15, 5, 5);
+                } else {
+                    ctx.fillRect(this.x + 20, this.y - 15, 5, 5);
+                }
+
+                // 防御姿态
+                if (this.isDefending) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                    ctx.fillRect(this.x - 5, this.y - 5, this.width + 10, this.height + 5);
+                }
+
+                // 攻击特效
+                if (this.isAttacking) {
+                    ctx.fillStyle = '#ffff00';
+                    const attackX = this.facing === 1 ? this.x + this.width : this.x - 30;
+                    ctx.fillRect(attackX, this.y + 20, 30, 40);
+                }
+
+                // 受击闪烁
+                if (this.hitStun > 0 && frameCount % 4 < 2) {
+                    ctx.fillStyle = 'rgba(255,0,0,0.5)';
+                    ctx.fillRect(this.x, this.y - 20, this.width, this.height + 20);
+                }
+            }
+
+            getAttackBox() {
+                if (!this.isAttacking) return null;
+                const attackX = this.facing === 1 ? this.x + this.width : this.x - 30;
+                return { x: attackX, y: this.y + 20, width: 30, height: 40 };
+            }
+
+            getHitBox() {
+                return { x: this.x, y: this.y - 20, width: this.width, height: this.height + 20 };
+            }
+        }
+
+        // 创建玩家
+        const player1 = new Fighter(150, '#3498db', true);
+        const player2 = new Fighter(600, '#e74c3c', false);
+
+        // 按键状态
+        const keys = {};
+
+        // 键盘事件
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            
+            // 玩家1攻击
+            if (e.code === 'Space' && gameRunning) {
+                e.preventDefault();
+                player1.attack();
+            }
+            // 玩家2攻击
+            if (e.code === 'Enter' && gameRunning) {
+                player2.attack();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        // 碰撞检测
+        function checkCollision(box1, box2) {
+            if (!box1 || !box2) return false;
+            return box1.x < box2.x + box2.width &&
+                   box1.x + box1.width > box2.x &&
+                   box1.y < box2.y + box2.height &&
+                   box1.y + box1.height > box2.y;
+        }
+
+        // 绘制血条
+        function drawHealthBar(fighter, x, y, label) {
+            const barWidth = 200;
+            const barHeight = 20;
+            
+            // 背景
+            ctx.fillStyle = '#333';
+            ctx.fillRect(x, y, barWidth, barHeight);
+            
+            // 血量
+            const hpPercent = fighter.hp / fighter.maxHp;
+            ctx.fillStyle = hpPercent > 0.5 ? '#2ecc71' : hpPercent > 0.25 ? '#f39c12' : '#e74c3c';
+            ctx.fillRect(x, y, barWidth * hpPercent, barHeight);
+            
+            // 边框
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, barWidth, barHeight);
+            
+            // 标签
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(label, x, y - 10);
+            ctx.textAlign = 'center';
+            ctx.fillText(`${fighter.hp}/${fighter.maxHp}`, x + barWidth/2, y + 15);
+        }
+
+        // 绘制背景
+        function drawBackground() {
+            // 天空渐变
+            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, '#0f3460');
+            gradient.addColorStop(1, '#16213e');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 800, 400);
+            
+            // 地面
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 380, 800, 20);
+            
+            // 装饰线条
+            ctx.strokeStyle = '#e94560';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, 380);
+            ctx.lineTo(800, 380);
+            ctx.stroke();
+            
+            // VS标志
+            ctx.fillStyle = '#e94560';
+            ctx.font = 'bold 40px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('VS', 400, 60);
+        }
+
+        // 处理输入
+        function handleInput() {
+            if (!gameRunning) return;
+
+            // 玩家1控制
+            if (player1.hitStun === 0) {
+                if (keys['KeyA']) {
+                    player1.x -= player1.speed;
+                    player1.facing = -1;
+                }
+                if (keys['KeyD']) {
+                    player1.x += player1.speed;
+                    player1.facing = 1;
+                }
+                if (keys['KeyW']) player1.jump();
+                player1.defend(keys['KeyS']);
+            }
+
+            // 玩家2控制
+            if (player2.hitStun === 0) {
+                if (keys['ArrowLeft']) {
+                    player2.x -= player2.speed;
+                    player2.facing = -1;
+                }
+                if (keys['ArrowRight']) {
+                    player2.x += player2.speed;
+                    player2.facing = 1;
+                }
+                if (keys['ArrowUp']) player2.jump();
+                player2.defend(keys['ArrowDown']);
+            }
+
+            // 边界限制
+            player1.x = Math.max(0, Math.min(750, player1.x));
+            player2.x = Math.max(0, Math.min(750, player2.x));
+        }
+
+        // 游戏逻辑
+        function update() {
+            if (!gameRunning) return;
+
+            frameCount++;
+
+            // 更新玩家
+            player1.update();
+            player2.update();
+
+            // 攻击判定
+            const p1Attack = player1.getAttackBox();
+            const p2Attack = player2.getAttackBox();
+            const p1Hit = player1.getHitBox();
+            const p2Hit = player2.getHitBox();
+
+            // 玩家1攻击命中玩家2
+            if (p1Attack && checkCollision(p1Attack, p2Hit) && player2.hitStun === 0) {
+                player2.takeDamage(8);
+                // 击退
+                player2.x += player1.facing * 20;
+            }
+
+            // 玩家2攻击命中玩家1
+            if (p2Attack && checkCollision(p2Attack, p1Hit) && player1.hitStun === 0) {
+                player1.takeDamage(8);
+                // 击退
+                player1.x += player2.facing * 20;
+            }
+
+            // 检查游戏结束
+            if (player1.hp <= 0 || player2.hp <= 0) {
+                gameRunning = false;
+                const winner = player1.hp > 0 ? '玩家1' : '玩家2';
+                winnerText.textContent = winner + ' 获胜！';
+                winnerText.style.color = player1.hp > 0 ? '#3498db' : '#e74c3c';
+                gameOverScreen.style.display = 'block';
+            }
+        }
+
+        // 绘制
+        function draw() {
+            ctx.clearRect(0, 0, 800, 400);
+            
+            drawBackground();
+            
+            // 血条
+            drawHealthBar(player1, 50, 30, '玩家1');
+            drawHealthBar(player2, 550, 30, '玩家2');
+            
+            // 玩家
+            player1.draw();
+            player2.draw();
+        }
+
+        // 游戏循环
+        function gameLoop() {
+            handleInput();
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 重新开始
+        restartBtn.addEventListener('click', () => {
+            player1.hp = player1.maxHp;
+            player1.x = 150;
+            player1.y = 300;
+            player2.hp = player2.maxHp;
+            player2.x = 600;
+            player2.y = 300;
+            gameRunning = true;
+            gameOverScreen.style.display = 'none';
+        });
+
+        // 启动游戏
+        gameLoop();
+    </script>
+</body>
+</html>
